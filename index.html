@@ -1,0 +1,400 @@
+<!-- packed-at: 2026-05-09T14:25:40 | source: smoke.csv | rows: 6 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Flashcards</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #1a1d24;
+    --surface-2: #232730;
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #8ab4f8;
+    --good: #34a853;
+    --bad: #ea4335;
+    --radius: 12px;
+    --tap: 56px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --surface: #f3f4f6;
+      --surface-2: #e5e7eb;
+      --text: #1f2328;
+      --muted: #5f6368;
+      --accent: #1a73e8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.4;
+    min-height: 100vh;
+    overscroll-behavior: none;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 22px; margin: 8px 0 16px; }
+  h2 { font-size: 18px; margin: 16px 0 8px; color: var(--muted); font-weight: 500; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chip {
+    background: var(--surface);
+    color: var(--text);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 15px;
+    min-height: 44px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .chip.on {
+    background: var(--surface-2);
+    border-color: var(--accent);
+  }
+  .chip .count { color: var(--muted); margin-left: 6px; font-variant-numeric: tabular-nums; }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  input[type="number"] {
+    width: 100%;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--surface-2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 17px;
+    min-height: var(--tap);
+    appearance: textfield;
+  }
+  button {
+    background: var(--accent);
+    color: #0f1115;
+    border: 0;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    font-size: 17px;
+    font-weight: 600;
+    min-height: var(--tap);
+    width: 100%;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:disabled { opacity: 0.5; }
+  button.secondary {
+    background: var(--surface);
+    color: var(--text);
+  }
+  button.good { background: var(--good); color: #fff; }
+  button.bad  { background: var(--bad);  color: #fff; }
+  .stack > * + * { margin-top: 12px; }
+  .progress { color: var(--muted); font-size: 14px; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .question {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    font-size: 22px;
+    line-height: 1.35;
+    min-height: 120px;
+  }
+  .answer {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 20px;
+    font-size: 19px;
+    margin-top: 12px;
+  }
+  .category-tag {
+    display: inline-block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+  .score-total { font-size: 32px; font-weight: 700; margin: 12px 0; }
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .score-row:last-child { border-bottom: 0; }
+  .score-row .pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Flashcards</h1>
+
+  <section id="screen-setup" class="screen active">
+    <h2>Categories</h2>
+    <div id="chips" class="chips"></div>
+    <label for="count-input">How many to review?</label>
+    <div class="stack">
+      <input id="count-input" type="number" min="1" inputmode="numeric" />
+      <button id="start-btn">Start</button>
+    </div>
+  </section>
+
+  <section id="screen-review" class="screen">
+    <div id="progress" class="progress"></div>
+    <div id="question" class="question"></div>
+    <div id="answer-block" hidden>
+      <div class="answer">
+        <span id="answer-category" class="category-tag"></span>
+        <div id="answer-text"></div>
+      </div>
+    </div>
+    <div id="reveal-row" class="stack">
+      <button id="reveal-btn">Reveal</button>
+    </div>
+    <div id="rate-row" class="actions" hidden>
+      <button id="bad-btn"  class="bad">Missed</button>
+      <button id="good-btn" class="good">Got it</button>
+    </div>
+  </section>
+
+  <section id="screen-score" class="screen">
+    <h2>Session complete</h2>
+    <div id="score-total" class="score-total"></div>
+    <div id="score-breakdown"></div>
+    <div class="stack" style="margin-top: 24px;">
+      <button id="restart-btn">Restart</button>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+// Stratified sample with largest-remainder rounding.
+// Filters `cards` to categories in `selectedCategories`, then picks counts
+// per category proportional to availability. Caps at per-category supply
+// and at total availability. Tie-breaks on equal remainders by the order
+// each category appears in `selectedCategories`.
+export function stratifiedSample(cards, n, selectedCategories) {
+  if (n === 0 || selectedCategories.length === 0) return [];
+
+  const selected = new Set(selectedCategories);
+  const filtered = cards.filter((c) => selected.has(c.category));
+  if (filtered.length === 0) return [];
+
+  const byCat = new Map();
+  for (const cat of selectedCategories) byCat.set(cat, []);
+  for (const c of filtered) byCat.get(c.category).push(c);
+
+  const total = filtered.length;
+  const effectiveN = Math.min(n, total);
+
+  const entries = [];
+  for (const [cat, list] of byCat) {
+    if (list.length === 0) continue;
+    const raw = (list.length / total) * effectiveN;
+    const quota = Math.floor(raw);
+    entries.push({ cat, list, quota, remainder: raw - quota });
+  }
+
+  let leftover =
+    effectiveN - entries.reduce((sum, e) => sum + e.quota, 0);
+
+  const order = entries
+    .map((_, i) => i)
+    .sort(
+      (a, b) =>
+        entries[b].remainder - entries[a].remainder || a - b,
+    );
+
+  for (const i of order) {
+    if (leftover <= 0) break;
+    if (entries[i].quota < entries[i].list.length) {
+      entries[i].quota += 1;
+      leftover -= 1;
+    }
+  }
+
+  const out = [];
+  for (const e of entries) {
+    out.push(...e.list.slice(0, e.quota));
+  }
+  return out;
+}
+
+// Tallies a list of {category, correct} results into total + per-category counts.
+export function scoreSummary(results) {
+  const byCategory = {};
+  let totalCorrect = 0;
+  for (const r of results) {
+    const slot = byCategory[r.category] || { correct: 0, total: 0 };
+    slot.total += 1;
+    if (r.correct) {
+      slot.correct += 1;
+      totalCorrect += 1;
+    }
+    byCategory[r.category] = slot;
+  }
+  return {
+    total: { correct: totalCorrect, total: results.length },
+    byCategory,
+  };
+}
+
+// Fisher-Yates shuffle. Returns a new array; does not mutate input.
+// `rng` must be a function returning a number in [0, 1).
+export function shuffle(arr, rng) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+
+const FLASHCARDS_DATA = [{"id": "q_smoke_1", "question": "What is 2 + 2?", "answer": "4.", "category": "Math"}, {"id": "q_smoke_2", "question": "What is the capital of France?", "answer": "Paris.", "category": "Geography"}, {"id": "q_smoke_3", "question": "Who wrote \"Hamlet\"?", "answer": "William Shakespeare.", "category": "Literature"}, {"id": "q_smoke_4", "question": "What gas do plants release during photosynthesis?", "answer": "Oxygen.", "category": "Science"}, {"id": "q_smoke_5", "question": "In what year did WW2 end?", "answer": "1945.", "category": "History"}, {"id": "q_smoke_6", "question": "What is 7 x 8?", "answer": "56.", "category": "Math"}];
+
+const $ = (id) => document.getElementById(id);
+
+const screens = {
+  setup:  $('screen-setup'),
+  review: $('screen-review'),
+  score:  $('screen-score'),
+};
+function show(name) {
+  for (const k of Object.keys(screens)) screens[k].classList.toggle('active', k === name);
+}
+
+const state = {
+  selected: new Set(),
+  cards: [],
+  index: 0,
+  results: [],
+};
+
+function categoryCounts(data) {
+  const counts = {};
+  for (const c of data) counts[c.category] = (counts[c.category] || 0) + 1;
+  return counts;
+}
+
+function renderChips() {
+  const counts = categoryCounts(FLASHCARDS_DATA);
+  const chipsEl = $('chips');
+  chipsEl.innerHTML = '';
+  for (const cat of Object.keys(counts).sort()) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip' + (state.selected.has(cat) ? ' on' : '');
+    btn.innerHTML = `${cat}<span class="count">${counts[cat]}</span>`;
+    btn.addEventListener('click', () => {
+      if (state.selected.has(cat)) state.selected.delete(cat);
+      else state.selected.add(cat);
+      renderChips();
+      syncCountDefault();
+    });
+    chipsEl.appendChild(btn);
+  }
+}
+
+function availableInSelection() {
+  return FLASHCARDS_DATA.filter((c) => state.selected.has(c.category)).length;
+}
+
+function syncCountDefault() {
+  const input = $('count-input');
+  const avail = availableInSelection();
+  input.max = String(avail);
+  if (!input.dataset.userTouched) input.value = String(avail);
+  $('start-btn').disabled = avail === 0 || Number(input.value) <= 0;
+}
+
+function startReview() {
+  const requested = Math.max(1, Math.min(availableInSelection(), Number($('count-input').value) || 0));
+  const selectedCats = [...state.selected];
+  const sampled = stratifiedSample(FLASHCARDS_DATA, requested, selectedCats);
+  state.cards = shuffle(sampled, Math.random);
+  state.index = 0;
+  state.results = [];
+  show('review');
+  renderCard();
+}
+
+function renderCard() {
+  const card = state.cards[state.index];
+  $('progress').textContent = `Card ${state.index + 1} of ${state.cards.length}`;
+  $('question').textContent = card.question;
+  $('answer-text').textContent = card.answer;
+  $('answer-category').textContent = card.category;
+  $('answer-block').hidden = true;
+  $('rate-row').hidden = true;
+  $('reveal-row').hidden = false;
+}
+
+function reveal() {
+  $('answer-block').hidden = false;
+  $('reveal-row').hidden = true;
+  $('rate-row').hidden = false;
+}
+
+function rate(correct) {
+  const card = state.cards[state.index];
+  state.results.push({ category: card.category, correct });
+  state.index += 1;
+  if (state.index >= state.cards.length) finish();
+  else renderCard();
+}
+
+function finish() {
+  const summary = scoreSummary(state.results);
+  $('score-total').textContent = `${summary.total.correct} / ${summary.total.total} correct`;
+  const bd = $('score-breakdown');
+  bd.innerHTML = '';
+  for (const cat of Object.keys(summary.byCategory).sort()) {
+    const slot = summary.byCategory[cat];
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.innerHTML = `<span>${cat}</span><span class="pct">${slot.correct} / ${slot.total}</span>`;
+    bd.appendChild(row);
+  }
+  show('score');
+}
+
+function restart() {
+  $('count-input').dataset.userTouched = '';
+  state.selected = new Set(Object.keys(categoryCounts(FLASHCARDS_DATA)));
+  renderChips();
+  syncCountDefault();
+  show('setup');
+}
+
+$('count-input').addEventListener('input', () => {
+  $('count-input').dataset.userTouched = '1';
+  $('start-btn').disabled = availableInSelection() === 0 || Number($('count-input').value) <= 0;
+});
+$('start-btn').addEventListener('click', startReview);
+$('reveal-btn').addEventListener('click', reveal);
+$('good-btn').addEventListener('click', () => rate(true));
+$('bad-btn').addEventListener('click', () => rate(false));
+$('restart-btn').addEventListener('click', restart);
+
+state.selected = new Set(Object.keys(categoryCounts(FLASHCARDS_DATA)));
+renderChips();
+syncCountDefault();
+</script>
+</body>
+</html>
