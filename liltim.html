@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Spells</title>
+<style>
+  :root {
+    --bg: #f7f3ea; --fg: #2b2620; --muted: #756c5f; --card: #fffdf8;
+    --line: #e3dccd; --accent: #7a2e2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1b1916; --fg: #ece5d8; --muted: #a39a8a; --card: #25221e;
+            --line: #3a352e; --accent: #d08c5a; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.5 Georgia, "Times New Roman", serif; -webkit-text-size-adjust: 100%; }
+  a { color: inherit; text-decoration: none; }
+  #app { max-width: 720px; margin: 0 auto; padding: 0 0 5rem; min-height: 100vh; }
+
+  .bar { position: sticky; top: 0; z-index: 2; background: var(--bg);
+    display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem;
+    border-bottom: 1px solid var(--line);
+    padding-top: calc(.75rem + env(safe-area-inset-top)); }
+  .bar h1 { font-size: 1.15rem; margin: 0; flex: 1; text-align: center; }
+  .bar .back { color: var(--accent); font-family: system-ui, sans-serif; font-size: .95rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+  .bar .pos { margin-left: auto; color: var(--muted); font-family: system-ui, sans-serif; font-size: .9rem; }
+
+  .search { padding: .75rem 1rem 0; }
+  .search input { width: 100%; font: inherit; font-family: system-ui, sans-serif; font-size: 1rem;
+    padding: .6rem .9rem; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); color: var(--fg); }
+
+  .menu { list-style: none; margin: .75rem 1rem; padding: 0; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .menu li + li { border-top: 1px solid var(--line); }
+  .menu a { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+    padding: .8rem 1rem; }
+  .menu a:active { background: var(--line); }
+  .menu .name { font-weight: 600; }
+  .menu .meta, .menu .count { color: var(--muted); font-family: system-ui, sans-serif;
+    font-size: .85rem; white-space: nowrap; }
+  .menu .empty { padding: 1rem; color: var(--muted); text-align: center; }
+
+  .spell { padding: 1rem 1.25rem; touch-action: pan-y; }
+  .spell h1 { font-size: 1.7rem; margin: .25rem 0 0; line-height: 1.2; }
+  .spell .sub { margin: .25rem 0 1rem; color: var(--muted); font-style: italic; }
+  .spell .tags { font-style: normal; font-family: system-ui, sans-serif; font-size: .8rem;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--accent); }
+  .spell dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem;
+    margin: 0 0 1rem; padding: .75rem 1rem; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; font-size: .95rem; }
+  .spell dt { font-family: system-ui, sans-serif; font-size: .8rem; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--muted); align-self: baseline; }
+  .spell dd { margin: 0; }
+  .spell p { margin: 0 0 .9rem; }
+  .spell pre { font-size: .8rem; overflow-x: auto; background: var(--card);
+    border: 1px solid var(--line); border-radius: 8px; padding: .75rem; }
+  .spell .source { color: var(--muted); font-size: .85rem; font-family: system-ui, sans-serif; }
+
+  .pager { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between;
+    gap: .5rem; padding: .6rem 1rem calc(.6rem + env(safe-area-inset-bottom));
+    background: var(--bg); border-top: 1px solid var(--line);
+    font-family: system-ui, sans-serif; font-size: .9rem; }
+  .pager a { color: var(--accent); max-width: 48%; overflow: hidden; white-space: nowrap;
+    text-overflow: ellipsis; padding: .3rem .2rem; }
+  .pager a:last-child { text-align: right; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="spells.js"></script>
+<script src="lists.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
