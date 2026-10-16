@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="format-detection" content="telephone=no">
+<meta name="robots" content="noindex, nofollow">
 <title>Quiz</title>
-<!-- Built from questions.csv: 6 questions, 2026-10-16T16:49:55Z -->
+<!-- Built from questions.csv: 6 questions, 2026-10-16T17:20:13Z -->
 <style>
   :root {
     --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5f6878;
@@ -320,6 +321,8 @@ function buildSession(questions, categories, n, rng = Math.random) {
   var results = [];   // [{ question, correct }]
   var position = 0;
   var presented = null;
+  var renderedAt = 0; // ignore response taps just after a question renders (ghost taps)
+  var TAP_GUARD_MS = 350;
 
   function show(id) {
     ["setup", "quiz", "results"].forEach(function (s) { $(s).hidden = s !== id; });
@@ -356,7 +359,9 @@ function buildSession(questions, categories, n, rng = Math.random) {
     $("toggle-all").textContent = selected.size === CATEGORIES.length ? "Select none" : "Select all";
     var input = $("howmany");
     input.max = String(available);
-    if (!howManyTouched || Number(input.value) > available) input.value = String(available);
+    if (!howManyTouched || Number(input.value) > available || Number(input.value) < 1) {
+      input.value = String(available);
+    }
     $("available").textContent = available + " question" + (available === 1 ? "" : "s") + " in selection";
     updateStart();
   }
@@ -416,11 +421,12 @@ function buildSession(questions, categories, n, rng = Math.random) {
     $("next").hidden = true;
     $("next").textContent = position + 1 === session.length ? "See results" : "Next";
     window.scrollTo(0, 0);
+    renderedAt = Date.now();
   }
 
   function answer(choice) {
     var buttons = $("responses").children;
-    if (buttons[0].disabled) return;
+    if (buttons[0].disabled || Date.now() - renderedAt < TAP_GUARD_MS) return;
     var ok = isCorrect(presented, choice);
     for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
     buttons[presented.correct].classList.add("correct");
