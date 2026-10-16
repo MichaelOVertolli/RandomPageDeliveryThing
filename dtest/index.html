@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>Quiz</title>
+<!-- Built from questions.csv: 6 questions, 2026-10-16T16:49:55Z -->
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5f6878;
+    --accent: #2f6fde; --accent-text: #fff; --border: #d5d9e0;
+    --good: #1f9d55; --good-bg: #e3f6eb; --bad: #d64545; --bad-bg: #fbe7e7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --card: #1e232b; --text: #e8ebf0; --muted: #9aa3b2;
+      --accent: #5b8ff0; --border: #353c48;
+      --good: #3cc47c; --good-bg: #173726; --bad: #ef6b6b; --bad-bg: #3d1d1d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 18px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  [hidden] { display: none !important; }
+  h1 { font-size: 1.4rem; margin: 8px 0 16px; }
+  h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+  button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+  .primary {
+    display: block; width: 100%; min-height: 56px; margin-top: 16px; padding: 12px;
+    border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-text); font-weight: 600;
+  }
+  .primary:disabled { opacity: 0.45; }
+  .secondary {
+    display: block; width: 100%; min-height: 52px; margin-top: 12px; padding: 12px;
+    border: 2px solid var(--accent); border-radius: 12px; background: transparent; color: var(--accent); font-weight: 600;
+  }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .link { border: 0; background: none; color: var(--accent); padding: 8px 0; min-height: 44px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    min-height: 44px; padding: 8px 14px; border-radius: 22px;
+    border: 2px solid var(--border); background: var(--card);
+  }
+  .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
+  .chip .count { opacity: 0.75; margin-left: 4px; }
+  label.howmany { display: block; margin-top: 20px; font-weight: 600; }
+  input[type="number"] {
+    display: block; width: 100%; margin-top: 8px; min-height: 52px; padding: 8px 12px;
+    font: inherit; font-size: 20px; color: var(--text); background: var(--card);
+    border: 2px solid var(--border); border-radius: 12px;
+  }
+  .hint { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+  .progress { color: var(--muted); font-size: 0.95rem; margin: 4px 0 12px; }
+  .question { font-size: 1.2rem; font-weight: 600; margin: 0 0 12px; white-space: pre-wrap; }
+  .picture { display: block; max-width: 100%; height: auto; margin: 0 auto 12px; border-radius: 8px; background: var(--card); }
+  .responses { display: flex; flex-direction: column; gap: 10px; }
+  .response {
+    text-align: left; min-height: 56px; padding: 12px 14px; border-radius: 12px;
+    border: 2px solid var(--border); background: var(--card); white-space: pre-wrap;
+  }
+  .response:disabled { cursor: default; opacity: 1; color: var(--text); }
+  .response.correct { border-color: var(--good); background: var(--good-bg); }
+  .response.wrong { border-color: var(--bad); background: var(--bad-bg); }
+  .response.correct::after { content: " \2713"; color: var(--good); font-weight: 700; }
+  .response.wrong::after { content: " \2717"; color: var(--bad); font-weight: 700; }
+  .score { font-size: 2rem; font-weight: 700; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 8px 4px; border-bottom: 1px solid var(--border); }
+  td.num { text-align: right; white-space: nowrap; }
+  .missed { list-style: none; padding: 0; margin: 0; }
+  .missed li { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .missed .answer { color: var(--good); margin-top: 4px; }
+  .missed .cat { color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <section id="setup">
+    <h1 id="title">Quiz</h1>
+    <div class="row">
+      <strong>Categories</strong>
+      <button type="button" class="link" id="toggle-all">Select none</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <label class="howmany" for="howmany">How many?</label>
+    <input type="number" id="howmany" inputmode="numeric" min="1" step="1">
+    <div class="hint" id="available"></div>
+    <button type="button" class="primary" id="start">Start</button>
+  </section>
+
+  <section id="quiz" hidden>
+    <div class="progress" id="progress"></div>
+    <p class="question" id="question"></p>
+    <img class="picture" id="picture" alt="" hidden>
+    <div class="responses" id="responses"></div>
+    <button type="button" class="primary" id="next" hidden>Next</button>
+  </section>
+
+  <section id="results" hidden>
+    <h1>Results</h1>
+    <div class="score" id="score"></div>
+    <h2>By category</h2>
+    <table><tbody id="by-category"></tbody></table>
+    <div id="missed-block">
+      <h2>Missed questions</h2>
+      <ul class="missed" id="missed"></ul>
+      <button type="button" class="primary" id="retry">Retry missed</button>
+    </div>
+    <button type="button" class="secondary" id="restart">Restart</button>
+  </section>
+</main>
+
+<script id="quiz-data" type="application/json">[
+ {
+  "id": "1",
+  "question": "A police or appointed ministry officer has the authority to perform a safety inspection",
+  "responses": [
+   "At any time and any location",
+   "Only at an inspection station",
+   "Only on a public roadway",
+   "During daylight hours only"
+  ],
+  "answer": 0,
+  "category": "Inspection",
+  "picture": null
+ },
+ {
+  "id": "2",
+  "question": "A properly completed daily inspection report contains:",
+  "responses": [
+   "Appropriate schedule",
+   "The signature of the driver or person completing the report",
+   "Daily log",
+   "Delivery schedule"
+  ],
+  "answer": 1,
+  "category": "Reporting",
+  "picture": null
+ },
+ {
+  "id": "3",
+  "question": "You must ensure that the following items are secure on the vehicle:",
+  "responses": [
+   "Only the load and direct attachments",
+   "None, load security is responsibility of operator and driver",
+   "Only items being transported for paid compensation",
+   "The entire load including items such as gas cans and wheel chocks"
+  ],
+  "answer": 3,
+  "category": "Requirements",
+  "picture": null
+ },
+ {
+  "id": "4",
+  "question": "A front tire fails an inspection if the tread on two adjacent grooves anywhere on the tire are:",
+  "responses": [
+   "Less than 1.5 mm",
+   "Less than 3 mm",
+   "Less than 6 mm",
+   "Less than 15 mm"
+  ],
+  "answer": 1,
+  "category": "Requirements",
+  "picture": null
+ },
+ {
+  "id": "5",
+  "question": "Three of the following activities are considered on-duty, which one is off-duty:",
+  "responses": [
+   "Driving",
+   "Time spent on sleeper berth",
+   "Loading and unloading",
+   "Performing a daily inspection"
+  ],
+  "answer": 1,
+  "category": "Activities",
+  "picture": null
+ },
+ {
+  "id": "12",
+  "question": "This sign means:",
+  "responses": [
+   "No trucks permitted",
+   "Truck route",
+   "No truck parking",
+   "Low bridge clearance"
+  ],
+  "answer": 0,
+  "category": "Signs",
+  "picture": "images/no_trucks.jpg"
+ }
+]</script>
+<script>
+// ---- answer.js ----
+// Showing a question's responses in random order and checking a tap.
+
+// Returns { responses: [text...], correct: position of the right one }.
+function presentResponses(question, rng = Math.random) {
+  const order = shuffle(question.responses.map((_, i) => i), rng);
+  return {
+    responses: order.map((i) => question.responses[i]),
+    correct: order.indexOf(question.answer),
+  };
+}
+
+function isCorrect(presented, position) {
+  return position === presented.correct;
+}
+
+function correctResponse(question) {
+  return question.responses[question.answer];
+}
+
+// ---- score.js ----
+// Results: overall and per-category scores, and the missed-questions list.
+// `results` is [{ question, correct: boolean }] in session order.
+
+function percent(correct, total) {
+  return total === 0 ? 0 : Math.round((100 * correct) / total);
+}
+
+function summarize(results) {
+  const cats = new Map();
+  let correct = 0;
+  for (const r of results) {
+    const c = r.question.category;
+    if (!cats.has(c)) cats.set(c, { category: c, correct: 0, total: 0 });
+    const entry = cats.get(c);
+    entry.total++;
+    if (r.correct) {
+      entry.correct++;
+      correct++;
+    }
+  }
+  return {
+    correct,
+    total: results.length,
+    percent: percent(correct, results.length),
+    byCategory: [...cats.values()].map((e) => ({ ...e, percent: percent(e.correct, e.total) })),
+  };
+}
+
+function missedQuestions(results) {
+  return results.filter((r) => !r.correct).map((r) => r.question);
+}
+
+// ---- select.js ----
+// Question selection: filter by category -> stratified sample -> shuffle.
+// Pure functions; randomness comes from an injectable rng (default Math.random).
+
+function shuffle(items, rng = Math.random) {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function categoryCounts(questions) {
+  const counts = new Map();
+  for (const q of questions) counts.set(q.category, (counts.get(q.category) || 0) + 1);
+  return [...counts].map(([category, count]) => ({ category, count }));
+}
+
+function filterByCategory(questions, categories) {
+  const keep = new Set(categories);
+  return questions.filter((q) => keep.has(q.category));
+}
+
+// Take n questions, each category contributing in proportion to its size.
+// Floors first, then leftover slots go to the largest fractional remainders
+// (ties broken at random).
+function stratifiedSample(questions, n, rng = Math.random) {
+  const total = questions.length;
+  if (n >= total) return questions.slice();
+  if (n <= 0) return [];
+  const groups = new Map();
+  for (const q of questions) {
+    if (!groups.has(q.category)) groups.set(q.category, []);
+    groups.get(q.category).push(q);
+  }
+  const plan = [...groups.values()].map((group) => {
+    const exact = (n * group.length) / total;
+    return { group, take: Math.floor(exact), frac: exact - Math.floor(exact), tie: rng() };
+  });
+  let left = n - plan.reduce((sum, p) => sum + p.take, 0);
+  const byRemainder = plan.slice().sort((a, b) => b.frac - a.frac || a.tie - b.tie);
+  for (const p of byRemainder) {
+    if (left === 0) break;
+    if (p.take < p.group.length) {
+      p.take++;
+      left--;
+    }
+  }
+  return plan.flatMap((p) => shuffle(p.group, rng).slice(0, p.take));
+}
+
+function buildSession(questions, categories, n, rng = Math.random) {
+  return shuffle(stratifiedSample(filterByCategory(questions, categories), n, rng), rng);
+}
+
+
+// ---- UI glue (DOM only; logic lives in the library above) ----
+(function () {
+  "use strict";
+  var QUESTIONS = JSON.parse(document.getElementById("quiz-data").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  var CATEGORIES = categoryCounts(QUESTIONS);
+  var selected = new Set(CATEGORIES.map(function (c) { return c.category; }));
+  var howManyTouched = false;
+
+  var session = [];   // questions for this run
+  var results = [];   // [{ question, correct }]
+  var position = 0;
+  var presented = null;
+
+  function show(id) {
+    ["setup", "quiz", "results"].forEach(function (s) { $(s).hidden = s !== id; });
+    window.scrollTo(0, 0);
+  }
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  // ---- Setup ----
+  function availableCount() {
+    return filterByCategory(QUESTIONS, Array.from(selected)).length;
+  }
+
+  function renderSetup() {
+    var chips = $("chips");
+    chips.textContent = "";
+    CATEGORIES.forEach(function (c) {
+      var chip = el("button", "chip", c.category);
+      chip.type = "button";
+      chip.setAttribute("aria-pressed", selected.has(c.category) ? "true" : "false");
+      chip.appendChild(el("span", "count", "(" + c.count + ")"));
+      chip.addEventListener("click", function () {
+        if (selected.has(c.category)) selected.delete(c.category); else selected.add(c.category);
+        renderSetup();
+      });
+      chips.appendChild(chip);
+    });
+    var available = availableCount();
+    $("toggle-all").textContent = selected.size === CATEGORIES.length ? "Select none" : "Select all";
+    var input = $("howmany");
+    input.max = String(available);
+    if (!howManyTouched || Number(input.value) > available) input.value = String(available);
+    $("available").textContent = available + " question" + (available === 1 ? "" : "s") + " in selection";
+    updateStart();
+  }
+
+  function requestedCount() {
+    var n = parseInt($("howmany").value, 10);
+    return isNaN(n) ? 0 : Math.min(n, availableCount());
+  }
+
+  function updateStart() {
+    $("start").disabled = requestedCount() < 1;
+  }
+
+  $("toggle-all").addEventListener("click", function () {
+    if (selected.size === CATEGORIES.length) selected.clear();
+    else CATEGORIES.forEach(function (c) { selected.add(c.category); });
+    howManyTouched = false;
+    renderSetup();
+  });
+  $("howmany").addEventListener("input", function () { howManyTouched = true; updateStart(); });
+  $("start").addEventListener("click", function () {
+    var n = requestedCount();
+    if (n < 1) return;
+    startSession(buildSession(QUESTIONS, Array.from(selected), n));
+  });
+
+  // ---- Question ----
+  function startSession(questions) {
+    session = questions;
+    results = [];
+    position = 0;
+    show("quiz");
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    var q = session[position];
+    presented = presentResponses(q);
+    $("progress").textContent = "Question " + (position + 1) + " / " + session.length;
+    $("question").textContent = q.question;
+    var img = $("picture");
+    if (q.picture) {
+      img.src = q.picture;
+      img.hidden = false;
+    } else {
+      img.removeAttribute("src");
+      img.hidden = true;
+    }
+    var box = $("responses");
+    box.textContent = "";
+    presented.responses.forEach(function (text, i) {
+      var b = el("button", "response", text);
+      b.type = "button";
+      b.addEventListener("click", function () { answer(i); });
+      box.appendChild(b);
+    });
+    $("next").hidden = true;
+    $("next").textContent = position + 1 === session.length ? "See results" : "Next";
+    window.scrollTo(0, 0);
+  }
+
+  function answer(choice) {
+    var buttons = $("responses").children;
+    if (buttons[0].disabled) return;
+    var ok = isCorrect(presented, choice);
+    for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
+    buttons[presented.correct].classList.add("correct");
+    if (!ok) buttons[choice].classList.add("wrong");
+    results.push({ question: session[position], correct: ok });
+    $("next").hidden = false;
+  }
+
+  $("next").addEventListener("click", function () {
+    position++;
+    if (position < session.length) renderQuestion();
+    else renderResults();
+  });
+
+  // ---- Results ----
+  function renderResults() {
+    var s = summarize(results);
+    $("score").textContent = s.correct + " / " + s.total + " (" + s.percent + "%)";
+    var body = $("by-category");
+    body.textContent = "";
+    s.byCategory.forEach(function (c) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "", c.category));
+      tr.appendChild(el("td", "num", c.correct + " / " + c.total));
+      tr.appendChild(el("td", "num", c.percent + "%"));
+      body.appendChild(tr);
+    });
+    var missed = missedQuestions(results);
+    var list = $("missed");
+    list.textContent = "";
+    missed.forEach(function (q) {
+      var li = el("li");
+      li.appendChild(el("div", "", q.question));
+      li.appendChild(el("div", "answer", "✓ " + correctResponse(q)));
+      li.appendChild(el("div", "cat", q.category));
+      list.appendChild(li);
+    });
+    $("missed-block").hidden = missed.length === 0;
+    show("results");
+  }
+
+  $("retry").addEventListener("click", function () {
+    startSession(shuffle(missedQuestions(results)));
+  });
+  $("restart").addEventListener("click", function () {
+    show("setup");
+    renderSetup();
+  });
+
+  renderSetup();
+})();
+</script>
+</body>
+</html>
