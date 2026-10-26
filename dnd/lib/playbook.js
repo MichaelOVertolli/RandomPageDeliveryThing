@@ -3,7 +3,7 @@
 // Output strings use **bold** markup; render.js escapes and converts it.
 import { BASIC, ABILITY_SHORT } from '../rules/common.js';
 import { activeFeatures, hasFeature, knowsSpell, characterSpells, findSpell, spellLine, slug, classArmor } from './features.js';
-import { weaponRows, vars, skills, saves, toolBonus, signed, heavyArmor, stealthDisadvantage } from './engine.js';
+import { weaponRows, vars, skills, saves, toolBonus, signed, d20, heavyArmor, stealthDisadvantage } from './engine.js';
 
 export const MAX_IF = 3;
 
@@ -104,18 +104,18 @@ function resolveToken(tok, ch, lib, ctx, v, page) {
     if (!s) return undefined;
     use('skills', s.id);
     const dis = s.id === 'stealth' && stealthDisadvantage(ch, lib) ? ' (disadvantage in your armor)' : '';
-    return `**${s.name} ${signed(s.bonus)}**${dis}`;
+    return `**${s.name} ${d20(s.bonus)}**${dis}`;
   }
   if (tok.startsWith('save.')) {
     const a = tok.slice(5);
     const s = saves(ch, lib)[a];
-    return s && `**${ABILITY_SHORT[a]} save ${signed(s.bonus)}**`;
+    return s && `**${ABILITY_SHORT[a]} save ${d20(s.bonus)}**`;
   }
   if (tok.startsWith('tool.')) {
     const id = tok.slice(5);
     if (!(ch.tools ?? []).includes(id)) return undefined;
     use('tools', id);
-    return `**${lib.tools[id].name} ${signed(toolBonus(ch, id, lib))}**`;
+    return `**${lib.tools[id].name} ${d20(toolBonus(ch, id, lib))}**`;
   }
   if (tok.startsWith('spell:')) {
     const r = spellSlot(tok.slice(6), ch, lib, ctx, page?.shortSpells);

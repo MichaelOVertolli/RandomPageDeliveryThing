@@ -17,6 +17,7 @@ export function validateCharacter(ch, lib, opts = {}) {
   const err = (field, msg) => errors.push(`${tag}: ${field}: ${msg}`);
 
   for (const f of REQUIRED) if (ch[f] == null || ch[f] === '') err(f, 'is required');
+  if (ch.id === 'tour') err('id', '"tour" is taken by the How this page works route (#/tour/<n>)');
   const cls = lib.classes[ch.class];
   if (ch.class != null && !cls) { err('class', `unknown class "${ch.class}"`); return errors; }
 

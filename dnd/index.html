@@ -52,11 +52,31 @@
   footer a { word-break: break-all; }
   .banner { background: #b3261e; color: #fff; padding: 10px 14px; font: 15px/1.4 system-ui, -apple-system, sans-serif; }
   .banner p { margin: 2px 0; }
+  .tour-link { margin: 20px 0 0; font: 15px/1.4 system-ui, -apple-system, sans-serif; }
+  .tour-link a { display: inline-flex; align-items: center; min-height: 44px; }
+  /* The tour (#/tour/<n>): the focused section and its bubble stand out; everything else is dimmed and inert. */
+  .touring main > *, .touring footer, .touring .bar > * { opacity: .35; }
+  .touring a, .touring summary { pointer-events: none; }
+  .touring [data-focus], .touring .bar[data-focus] > *, .touring .bubble { opacity: 1; }
+  .touring [data-focus] { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+  .touring .bubble a { pointer-events: auto; }
+  .bubble { position: relative; margin: 16px 0 10px; padding: 8px 14px 12px; background: var(--card); border: 2px solid var(--accent); border-radius: 12px;
+    font: 16px/1.45 system-ui, -apple-system, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
+  .bubble::before { content: ""; position: absolute; top: -11px; left: 28px; width: 18px; height: 18px; background: var(--card);
+    border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); transform: rotate(45deg); }
+  .touring > .bubble { width: calc(100% - 28px); max-width: 692px; margin: 16px auto 10px; }
+  .bubble p { margin: 6px 0; }
+  .bubble .count { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+  .tour-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .tbtn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--fg); text-decoration: none; font-size: 16px; }
+  .tbtn.next { background: var(--accent); border-color: var(--accent); color: var(--card); font-weight: 600; }
+  .tbtn.skip { margin-left: auto; border-color: transparent; background: none; color: var(--muted); }
 </style>
 </head>
 <body>
 <div id="app"><p style="padding:16px">Loading…</p></div>
 <noscript><p>This page needs JavaScript.</p></noscript>
-<script type="module" src="app.js?v=2026-10-26c"></script>
+<script type="module" src="app.js?v=2026-10-26d"></script>
 </body>
 </html>

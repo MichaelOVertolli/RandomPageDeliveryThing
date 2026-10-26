@@ -1,16 +1,18 @@
 // Router + DOM glue only. Routes: #/ (characters), #/<charId>, #/<charId>/<node>,
-// #/<charId>/<node>/more (that node's Other actions).
+// #/<charId>/<node>/more (that node's Other actions), #/tour/<n> (How this page works).
 // Private files are optional: a missing one is not an error, a broken one is.
 //
 // VERSION busts the Pages cache: bump it on every publish, and use the same
 // stamp in index.html's <script src="app.js?v=...">.
-const VERSION = '2026-10-26c';
+const VERSION = '2026-10-26d';
 
 const { makeLibrary } = await import(`./lib/features.js?v=${VERSION}`);
 const { renderLanding, renderHome, renderNode, renderMore, renderBanner } = await import(`./lib/render.js?v=${VERSION}`);
 const { libraryGaps } = await import(`./lib/validate.js?v=${VERSION}`);
 const { NODES, MORE, hasMorePage } = await import(`./rules/tree.js?v=${VERSION}`);
 const { default: fixtures } = await import(`./fixtures.js?v=${VERSION}`);
+const { renderTour } = await import(`./lib/tour.js?v=${VERSION}`);
+const { TOUR_CHARACTER } = await import(`./rules/tour.js?v=${VERSION}`);
 
 const problems = [];
 
@@ -47,6 +49,12 @@ const norm = h => `#/${String(h).replace(/^#\/?/, '')}`;
 const scrollAt = new Map();
 let current = null;
 let previous = null;
+// The tour always shows the committed example character, even when private
+// characters are loaded. `tourFrom`: the in-app route the tour was opened
+// from (null when the tour was the first page loaded).
+const tourCharacter = fixtures.find(c => c.id === TOUR_CHARACTER);
+const isTour = h => /^#\/tour(\/|$)/.test(h ?? '');
+let tourFrom = null;
 
 function parts() {
   try {
@@ -64,8 +72,13 @@ function route() {
   const more = rest.at(-1) === MORE && hasMorePage(rest.slice(0, -1).join('/'));
   const node = (more ? rest.slice(0, -1) : rest).join('/');
   const ch = characters.find(c => c.id === id);
+  const tour = id === 'tour';
+  if (tour && !isTour(previous)) tourFrom = previous;
   let html;
-  if (!ch) {
+  if (tour) {
+    html = renderTour(rest[0], tourCharacter, lib, ctx);
+    document.title = 'How this page works';
+  } else if (!ch) {
     html = renderLanding(characters, lib, ctx);
     document.title = 'Characters';
   } else if (more) {
@@ -79,13 +92,41 @@ function route() {
     document.title = `${NODES[node].label} · ${ch.name}`;
   }
   app.innerHTML = renderBanner(problems) + html;
-  window.scrollTo(0, scrollAt.get(current) ?? 0);
+  if (tour) showTourFocus();
+  else window.scrollTo(0, scrollAt.get(current) ?? 0);
+}
+
+// A tour step: the page underneath is inert (no taps or keyboard focus
+// outside the bubble), and the focused section's top sits just below the
+// sticky bar.
+function showTourFocus() {
+  for (const el of app.querySelectorAll('.touring a, .touring summary')) {
+    if (!el.closest('.bubble')) el.tabIndex = -1;
+  }
+  const el = app.querySelector('[data-focus]');
+  const barHeight = app.querySelector('.bar')?.offsetHeight ?? 0;
+  const top = el && !el.matches('.bar') ? el.getBoundingClientRect().top + window.scrollY - barHeight - 8 : 0;
+  window.scrollTo(0, Math.max(0, top));
 }
 
 // The in-app Back link: go back in history when we came from that page (so
 // the phone's Back button doesn't then return here); otherwise replace this
 // entry with the parent.
 document.addEventListener('click', e => {
+  // Tour: Next/Back replace this history entry, so the tour takes one; Skip
+  // and Done return to where it started. The page under the bubble is inert.
+  const t = e.target.closest?.('a[data-tour-step], a[data-tour-exit]');
+  if (t) {
+    e.preventDefault();
+    if (t.hasAttribute('data-tour-step')) location.replace(t.getAttribute('href'));
+    else if (tourFrom && !isTour(tourFrom)) history.back();
+    else location.replace('#/');
+    return;
+  }
+  if (e.target.closest?.('.touring') && !e.target.closest('.bubble')) {
+    e.preventDefault();
+    return;
+  }
   const a = e.target.closest?.('a.back[href]');
   if (!a) return;
   e.preventDefault();

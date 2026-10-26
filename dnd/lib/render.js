@@ -6,7 +6,7 @@ import {
 } from '../rules/common.js';
 import { featuresFor, activeFeatures, visibleNodes, characterSpells, oathSpells, findSpell, spellLine, spellPlacement, slug } from './features.js';
 import {
-  vars, hpMax, armorClass, speed, initiative, passivePerception, profBonus, signed, saves, skills,
+  vars, hpMax, armorClass, speed, initiative, passivePerception, profBonus, signed, d20, saves, skills,
   weaponRows, toolBonus, resistances, stealthDisadvantage, spellSlots,
 } from './engine.js';
 import { playbookFor, roleFor, weaponLine, resolveText } from './playbook.js';
@@ -38,9 +38,18 @@ export function renderFooter() {
   return `<footer><p>${linkify(esc(ATTRIBUTION))}</p><p>Role playbooks and app text are original writing. Any non-SRD content shown here comes from private files that are not part of the open-source repository.</p></footer>`;
 }
 
-function bar(title, back) {
+// A page section the tour can point at: data-tour="<key>" on its outer tag.
+// On a tour step (ctx.tour = {focus, bubble}) the focused section also gets
+// data-focus, and the step's bubble goes directly after it.
+function part(key, html, ctx) {
+  const focused = ctx?.tour?.focus === key;
+  const out = html.replace(/^<([a-z0-9]+)/, `<$1 data-tour="${key}"${focused ? ' data-focus' : ''}`);
+  return focused ? out + ctx.tour.bubble : out;
+}
+
+function bar(title, back, ctx) {
   const link = back ? `<a class="back" href="${esc(back.href)}">‹ ${esc(back.label)}</a>` : '<span class="back"></span>';
-  return `<header class="bar">${link}<h1>${esc(title)}</h1><span class="back"></span></header>`;
+  return part('bar', `<header class="bar">${link}<h1>${esc(title)}</h1><span class="back"></span></header>`, ctx);
 }
 
 const page = (barHtml, body) => `${barHtml}<main>${body}</main>${renderFooter()}`;
@@ -73,8 +82,9 @@ function featureCard(f, ch, lib, ctx, v) {
 export function renderLanding(characters, lib, ctx = {}) {
   const items = characters.map(ch =>
     `<li><a class="btn" href="#/${esc(ch.id)}"><b>${esc(ch.name)}</b><span>${esc(classLine(ch, lib))}</span></a></li>`).join('');
+  const tour = '<li><a class="btn" href="#/tour/1"><b>New here?</b><span>How this page works</span></a></li>';
   const note = ctx.fallback ? '<p class="muted">Showing the built-in example characters (no private character file found).</p>' : '';
-  return page(bar('Characters'), `${note}<ul class="buttons">${items}</ul>`);
+  return page(bar('Characters'), `${note}<ul class="buttons">${tour}${items}</ul>`);
 }
 
 export function renderHome(ch, lib, ctx = {}) {
@@ -82,7 +92,7 @@ export function renderHome(ch, lib, ctx = {}) {
   const role = roleFor(ch, lib);
   const stats = [
     `HP <b>${hpMax(ch, lib)}</b>`, `AC <b>${armorClass(ch, lib)}</b>`, `Speed <b>${speed(ch, lib)} ft</b>`,
-    `Init <b>${signed(initiative(ch, lib))}</b>`, `Passive Perc <b>${passivePerception(ch, lib)}</b>`, `Prof <b>${signed(profBonus(ch.level))}</b>`,
+    `Init <b>${d20(initiative(ch, lib))}</b>`, `Passive Perc <b>${passivePerception(ch, lib)}</b>`, `Prof <b>${signed(profBonus(ch.level))}</b>`,
   ].join(' · ');
   const uses = activeFeatures(ch, lib).filter(f => f.uses).map(f => `${esc(f.name)} ${esc(usesText(f, v))}`);
   uses.push(`Hit dice ${esc(v.hitDice)}`);
@@ -95,9 +105,11 @@ export function renderHome(ch, lib, ctx = {}) {
     return `<section class="group"><h2>${esc(g.label)}</h2><ul class="buttons">${buttons}</ul></section>`;
   }).join('');
   const body = `<p class="sub">${esc(classLine(ch, lib))}</p>`
-    + (role ? `<p class="job"><b>Your job:</b> ${esc(role.job)}</p>` : '')
-    + `<p class="stats">${stats}</p><p class="stats">${uses.join(' · ')}</p>${casting}${groups}`;
-  return page(bar(ch.name, { href: '#/', label: 'Characters' }), body);
+    + (role ? part('job', `<p class="job"><b>Your job:</b> ${esc(role.job)}</p>`, ctx) : '')
+    + part('stats', `<div class="numbers"><p class="stats">${stats}</p><p class="stats">${uses.join(' · ')}</p>${casting}</div>`, ctx)
+    + part('groups', `<div class="groups">${groups}</div>`, ctx)
+    + '<p class="tour-link"><a href="#/tour/1">How this page works</a></p>';
+  return page(bar(ch.name, { href: '#/', label: 'Characters' }, ctx), body);
 }
 
 // ---- node bodies ----
@@ -128,8 +140,8 @@ const ALL = () => true;
 
 const list = items => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
 const idList = items => (items.length ? `<ul>${items.map(([id, h]) => `<li data-id="${esc(id)}">${h}</li>`).join('')}</ul>` : '');
-const skillLine = s => `<b>${esc(s.name)} ${signed(s.bonus)}</b>${s.expertise ? ' (expertise)' : s.prof ? ' (proficient)' : ''}`;
-const subsection = (title, html) => (html ? `<details class="sub"><summary>${esc(title)}</summary>${html}</details>` : '');
+const skillLine = s => `<b>${esc(s.name)} ${d20(s.bonus)}</b>${s.expertise ? ' (expertise)' : s.prof ? ' (proficient)' : ''}`;
+const subsection = (title, html, open) => (html ? `<details class="sub"${open ? ' open' : ''}><summary>${esc(title)}</summary>${html}</details>` : '');
 
 // A feature you choose to use (an action, bonus action or reaction, a limited
 // use, a weapon add-on), as opposed to one that just applies. `action: true`
@@ -156,7 +168,7 @@ function otherActions(ch, node, lib, ctx, v, pb) {
   const out = [];
   const skillItems = ids => idList(ids.filter(id => sk[id] && !has('skills', id)).map(id => [`skill:${id}`, skillLine(sk[id])]));
   const toolItems = () => (ch.tools ?? []).filter(t => !has('tools', t))
-    .map(t => [`tool:${t}`, `<b>${esc(lib.tools[t]?.name ?? t)} ${signed(toolBonus(ch, t, lib) ?? 0)}</b>`]);
+    .map(t => [`tool:${t}`, `<b>${esc(lib.tools[t]?.name ?? t)} ${d20(toolBonus(ch, t, lib) ?? 0)}</b>`]);
   const weaponItems = (list, usage) => idList(list.filter(r => !has('weapons', r.id)).map(r => [`weapon:${r.id}`, md(weaponLine(r, usage(r), ch, lib, v))]));
 
   switch (node) {
@@ -176,7 +188,7 @@ function otherActions(ch, node, lib, ctx, v, pb) {
     case 'search': out.push(skillItems(['perception', 'investigation']), idList(toolItems())); break;
     case 'save': {
       const sv = saves(ch, lib);
-      out.push(idList(ABILITIES.map(a => [`save:${a}`, `<b>${ABILITY_NAMES[a]} ${signed(sv[a].bonus)}</b>${sv[a].prof ? ' (proficient)' : ''}: ${esc(SAVE_TRIGGERS[a])}`])));
+      out.push(idList(ABILITIES.map(a => [`save:${a}`, `<b>${ABILITY_NAMES[a]} ${d20(sv[a].bonus)}</b>${sv[a].prof ? ' (proficient)' : ''}: ${esc(SAVE_TRIGGERS[a])}`])));
       break;
     }
     case 'check': {
@@ -228,7 +240,7 @@ function additionalDetails(ch, node, lib, ctx, v, pb) {
   switch (node) {
     case 'turn/ranged': rules.push('<p>Disadvantage when an enemy is within 5 ft of you, or beyond the first range number.</p>'); break;
     case 'defend':
-      if (characterSpells(ch, lib).length) rules.push(`<p>${esc(CONCENTRATION)} Your Con save: <b>${signed(saves(ch, lib).con.bonus)}</b>.</p>`);
+      if (characterSpells(ch, lib).length) rules.push(`<p>${esc(CONCENTRATION)} Your Con save: <b>${d20(saves(ch, lib).con.bonus)}</b>.</p>`);
       break;
     case 'hurt': rules.push(`<p>HP max <b>${hpMax(ch, lib)}</b> · Hit dice <b>${esc(v.hitDice)}</b></p>`, list(DEATH_SAVES.map(esc))); break;
     case 'explore': rules.push(`<p>Speed <b>${speed(ch, lib)} ft</b> · Passive Perception <b>${passivePerception(ch, lib)}</b></p>`, list(TRAVEL_PACE.map(esc))); break;
@@ -245,9 +257,11 @@ function additionalDetails(ch, node, lib, ctx, v, pb) {
     case 'help': rules.push(list(HELP_RULES.map(esc))); break;
     default:
   }
-  const subs = subsection('Your features', featureHtml) + subsection('Weapons', weaponHtml)
-    + subsection('Spells', spellHtml) + subsection('Rules basics', rules.join(''));
-  return subs ? `<details class="other"><summary>Additional details</summary>${subs}</details>` : '';
+  // The tour's Additional details step shows it, and its first subsection, open.
+  const open = ctx.tour?.focus === 'details';
+  const subs = [['Your features', featureHtml], ['Weapons', weaponHtml], ['Spells', spellHtml], ['Rules basics', rules.join('')]]
+    .filter(([, html]) => html).map(([title, html], i) => subsection(title, html, open && i === 0)).join('');
+  return subs ? part('details', `<div class="details"><details class="other"${open ? ' open' : ''}><summary>Additional details</summary>${subs}</details></div>`, ctx) : '';
 }
 
 const buttons = links => `<nav class="children"><ul class="buttons">${links.map(([href, label]) => `<li><a class="btn small" href="${esc(href)}">${esc(label)}</a></li>`).join('')}</ul></nav>`;
@@ -265,31 +279,31 @@ export function renderNode(ch, node, lib, ctx = {}) {
     body += `<p class="stats">AC <b>${armorClass(ch, lib)}</b>${res.length ? ` · Resistant to ${esc(res.join(', '))}` : ''}</p>`;
   }
   if (pb.notes) body += `<p class="note">${md(pb.notes)}</p>`;
-  if (pb.first.length) body += `<section class="first"><h2>First turn</h2>${list(pb.first.map(md))}</section>`;
-  body += `<section class="do"><h2>Do this</h2>${pb.do.length ? `<ol>${pb.do.map(s => `<li>${md(s)}</li>`).join('')}</ol>` : '<p class="muted">Nothing here for this character.</p>'}</section>`;
-  if (pb.if.length) body += `<section class="if"><h2>If…</h2><ul>${pb.if.map(i => `<li><b>${md(i.when)}</b> → ${md(i.then)}</li>`).join('')}</ul></section>`;
+  if (pb.first.length) body += part('first', `<section class="first"><h2>First turn</h2>${list(pb.first.map(md))}</section>`, ctx);
+  body += part('do', `<section class="do"><h2>Do this</h2>${pb.do.length ? `<ol>${pb.do.map(s => `<li>${md(s)}</li>`).join('')}</ol>` : '<p class="muted">Nothing here for this character.</p>'}</section>`, ctx);
+  if (pb.if.length) body += part('if', `<section class="if"><h2>If…</h2><ul>${pb.if.map(i => `<li><b>${md(i.when)}</b> → ${md(i.then)}</li>`).join('')}</ul></section>`, ctx);
 
   if (info.children) {
     const visible = new Set(visibleNodes(ch, lib));
-    body += buttons(info.children.filter(c => visible.has(c)).map(c => [`#/${ch.id}/${c}`, NODES[c].label]));
+    body += part('children', buttons(info.children.filter(c => visible.has(c)).map(c => [`#/${ch.id}/${c}`, NODES[c].label])), ctx);
   }
   if (node === 'turn/spell') {
     const head = v.spellDC ? `<p class="stats">Spell DC <b>${v.spellDC}</b> · Spell attack <b>${v.spellAttack}</b> · Slots ${md(v.slots)}</p>` : '';
     const oath = new Set(oathSpells(ch, lib).map(n => n.toLowerCase()));
     const own = characterSpells(ch, lib).filter(n => !oath.has(n.toLowerCase()));
     const oathCards = oath.size ? spellCards(ch, lib, ctx, ALL, oathSpells(ch, lib)) : '';
-    body += `<section class="spells"><h2>Your spells</h2>${head}${spellCards(ch, lib, ctx, ALL, own) || (oathCards ? '' : '<p class="muted">No spells.</p>')}</section>`;
-    if (oathCards) body += `<section class="spells"><h2>Always prepared (oath)</h2>${oathCards}</section>`;
+    const yours = `<section class="spells"><h2>Your spells</h2>${head}${spellCards(ch, lib, ctx, ALL, own) || (oathCards ? '' : '<p class="muted">No spells.</p>')}</section>`;
+    body += part('spells', `<div class="spell-list">${yours}${oathCards ? `<section class="spells"><h2>Always prepared (oath)</h2>${oathCards}</section>` : ''}</div>`, ctx);
   }
   if (info.parent) {
     // turn/* pages list their Other actions inline.
     const more = otherActions(ch, node, lib, ctx, v, pb);
     if (more) body += `<section class="more"><h2>Other actions</h2>${more}</section>`;
   } else if (hasMorePage(node) && otherActions(ch, node, lib, ctx, v, pb)) {
-    body += buttons([[`#/${ch.id}/${node}/${MORE}`, 'Other actions']]);
+    body += part('more', buttons([[`#/${ch.id}/${node}/${MORE}`, 'Other actions']]), ctx);
   }
   body += additionalDetails(ch, node, lib, ctx, v, pb);
-  return page(bar(info.label, back), body);
+  return page(bar(info.label, back, ctx), body);
 }
 
 // #/<char>/<node>/more: the node's Other actions (two taps from home).

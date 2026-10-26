@@ -6,6 +6,9 @@ import { hasFeature, choiceValues } from './features.js';
 export const mod = score => Math.floor((score - 10) / 2);
 export const profBonus = level => 2 + Math.floor((level - 1) / 4);
 export const signed = n => (n >= 0 ? `+${n}` : `${n}`);
+// A roll bonus (skill, save, tool, initiative, spell attack): "d20+9", "d20−1", "d20".
+// Weapon lines keep "+7 to hit"; prof, AC, DCs and passive scores aren't rolls.
+export const d20 = n => (n === 0 ? 'd20' : n > 0 ? `d20+${n}` : `d20−${-n}`);
 const plus = (dice, n) => (n === 0 ? dice : `${dice}${signed(n)}`);
 const abil = (ch, a) => mod(ch.abilities?.[a] ?? 10);
 
@@ -170,16 +173,16 @@ export function vars(ch, lib) {
   const v = {
     level: ch.level, prof: signed(pb), halfProf: halfProf(ch),
     attacks: ['once', 'twice', 'three times', 'four times'][attacksPerTurn(ch, lib) - 1],
-    initiative: signed(initiative(ch, lib)), ac: armorClass(ch, lib), speed: speed(ch, lib), hp: hpMax(ch, lib),
+    initiative: d20(initiative(ch, lib)), ac: armorClass(ch, lib), speed: speed(ch, lib), hp: hpMax(ch, lib),
     hitDice: `${ch.level}d${lib.classes[ch.class]?.hitDie ?? 8}`,
     passivePerception: passivePerception(ch, lib),
   };
   for (const a of ABILITIES) v[`mod.${a}`] = signed(abil(ch, a));
 
   const sk = Object.values(skills(ch, lib)).sort((a, b) => b.bonus - a.bonus || b.prof - a.prof || a.name.localeCompare(b.name));
-  v.bestSkills = sk.slice(0, 3).map(s => `**${s.name} ${signed(s.bonus)}**`).join(', ');
+  v.bestSkills = sk.slice(0, 3).map(s => `**${s.name} ${d20(s.bonus)}**`).join(', ');
   const sv = Object.entries(saves(ch, lib)).sort((a, b) => b[1].bonus - a[1].bonus || b[1].prof - a[1].prof);
-  v.bestSaves = sv.slice(0, 2).map(([a, s]) => `**${ABILITY_SHORT[a]} ${signed(s.bonus)}**`).join(', ');
+  v.bestSaves = sv.slice(0, 2).map(([a, s]) => `**${ABILITY_SHORT[a]} ${d20(s.bonus)}**`).join(', ');
 
   if (hasFeature(ch, 'second-wind', lib)) v.secondWind = `1d10+${ch.level}`;
   if (hasFeature(ch, 'rage', lib)) { v.rageUses = rageUses(ch.level); v.rageDamage = signed(rageDamage(ch.level)); }
@@ -197,7 +200,7 @@ export function vars(ch, lib) {
   if (casting && ch.level >= casting.from) {
     const m = abil(ch, casting.ability);
     v.spellDC = 8 + pb + m;
-    v.spellAttack = signed(pb + m);
+    v.spellAttack = d20(pb + m);
     v.slots = halfCasterSlots(ch.level).map((n, i) => `**${n}** × ${ORD[i + 1]}`).join(', ');
     if (casting.kind === 'known') v.spellsKnown = rangerSpellsKnown(ch.level);
     if (casting.kind === 'prepared') v.preparedCount = paladinPrepared(ch);
