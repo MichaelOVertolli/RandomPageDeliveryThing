@@ -1,10 +1,12 @@
 // Router + DOM glue only. Routes: #/ (characters), #/<charId>, #/<charId>/<node>,
-// #/<charId>/<node>/more (that node's Other actions), #/tour/<n> (How this page works).
+// #/<charId>/<node>/more (that node's Other actions), #/tour/<n> (How this page works),
+// #/help and #/help/<charId> (Look up a word; `help` is also a node id, so the
+// character's help page puts the character after it).
 // Private files are optional: a missing one is not an error, a broken one is.
 //
 // VERSION busts the Pages cache: bump it on every publish, and use the same
 // stamp in index.html's <script src="app.js?v=...">.
-const VERSION = '2026-10-26d';
+const VERSION = '2026-10-26e';
 
 const { makeLibrary } = await import(`./lib/features.js?v=${VERSION}`);
 const { renderLanding, renderHome, renderNode, renderMore, renderBanner } = await import(`./lib/render.js?v=${VERSION}`);
@@ -13,6 +15,7 @@ const { NODES, MORE, hasMorePage } = await import(`./rules/tree.js?v=${VERSION}`
 const { default: fixtures } = await import(`./fixtures.js?v=${VERSION}`);
 const { renderTour } = await import(`./lib/tour.js?v=${VERSION}`);
 const { TOUR_CHARACTER } = await import(`./rules/tour.js?v=${VERSION}`);
+const { renderHelp, renderHelpResults, helpEntries } = await import(`./lib/help.js?v=${VERSION}`);
 
 const problems = [];
 
@@ -55,6 +58,11 @@ let previous = null;
 const tourCharacter = fixtures.find(c => c.id === TOUR_CHARACTER);
 const isTour = h => /^#\/tour(\/|$)/.test(h ?? '');
 let tourFrom = null;
+// Help: `helpFrom` is the in-app route it was opened from (its back link
+// returns there); `helpList` is what the search box filters.
+const isHelp = h => /^#\/help(\/|$)/.test(h ?? '');
+let helpFrom = null;
+let helpList = [];
 
 function parts() {
   try {
@@ -74,8 +82,15 @@ function route() {
   const ch = characters.find(c => c.id === id);
   const tour = id === 'tour';
   if (tour && !isTour(previous)) tourFrom = previous;
+  const help = id === 'help';
+  if (help && !isHelp(previous)) helpFrom = previous;
   let html;
-  if (tour) {
+  if (help) {
+    const hc = characters.find(c => c.id === rest[0]) ?? null;
+    helpList = helpEntries(hc, lib, ctx);
+    html = renderHelp(hc, lib, ctx);
+    document.title = 'Look up a word';
+  } else if (tour) {
     html = renderTour(rest[0], tourCharacter, lib, ctx);
     document.title = 'How this page works';
   } else if (!ch) {
@@ -93,7 +108,7 @@ function route() {
   }
   app.innerHTML = renderBanner(problems) + html;
   if (tour) showTourFocus();
-  else window.scrollTo(0, scrollAt.get(current) ?? 0);
+  else window.scrollTo(0, help ? 0 : scrollAt.get(current) ?? 0);
 }
 
 // A tour step: the page underneath is inert (no taps or keyboard focus
@@ -131,8 +146,22 @@ document.addEventListener('click', e => {
   if (!a) return;
   e.preventDefault();
   const parent = norm(a.getAttribute('href'));
+  // Help's back link: to the page help was opened from, else its fallback.
+  if (a.hasAttribute('data-return')) {
+    if (helpFrom && !isTour(helpFrom)) history.back();
+    else location.replace(parent);
+    return;
+  }
   if (previous === parent) history.back();
   else location.replace(parent);
+});
+
+// Help search: re-render only the results on each keystroke, so the box keeps
+// its focus and cursor.
+document.addEventListener('input', e => {
+  if (e.target.id !== 'help-q') return;
+  const out = document.getElementById('help-results');
+  if (out) out.innerHTML = renderHelpResults(e.target.value, helpList);
 });
 
 window.addEventListener('hashchange', route);

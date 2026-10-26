@@ -47,12 +47,14 @@ function part(key, html, ctx) {
   return focused ? out + ctx.tour.bubble : out;
 }
 
-function bar(title, back, ctx) {
-  const link = back ? `<a class="back" href="${esc(back.href)}">‹ ${esc(back.label)}</a>` : '<span class="back"></span>';
+// `returns`: the back link goes back to whichever page opened this one
+// (data-return, handled in app.js), with `back.href` as the fallback.
+export function bar(title, back, ctx, returns = false) {
+  const link = back ? `<a class="back" href="${esc(back.href)}"${returns ? ' data-return' : ''}>‹ ${esc(back.label)}</a>` : '<span class="back"></span>';
   return part('bar', `<header class="bar">${link}<h1>${esc(title)}</h1><span class="back"></span></header>`, ctx);
 }
 
-const page = (barHtml, body) => `${barHtml}<main>${body}</main>${renderFooter()}`;
+export const page = (barHtml, body) => `${barHtml}<main>${body}</main>${renderFooter()}`;
 
 function classLine(ch, lib) {
   const cls = lib.classes[ch.class];
@@ -62,7 +64,7 @@ function classLine(ch, lib) {
 }
 
 // Feature text with whatever vars resolve; anything unresolved reads "(not set)".
-function featureText(text, ch, lib, ctx, v) {
+export function featureText(text, ch, lib, ctx, v) {
   const full = resolveText(text, ch, lib, ctx, v);
   if (full != null) return full;
   return String(text).replace(/\{([^}]+)\}/g, (m) => resolveText(m, ch, lib, ctx, v) ?? '(not set)');
@@ -74,7 +76,7 @@ function usesText(f, v) {
   return `${n}/${f.uses.per}`;
 }
 
-function featureCard(f, ch, lib, ctx, v) {
+export function featureCard(f, ch, lib, ctx, v) {
   const uses = usesText(f, v);
   return `<div class="card" data-id="${esc(f.id)}"><h3>${esc(f.name)}${uses ? ` <span class="uses">${esc(uses)}</span>` : ''}</h3>${f.text ? `<p>${md(featureText(f.text, ch, lib, ctx, v))}</p>` : ''}</div>`;
 }
@@ -83,8 +85,9 @@ export function renderLanding(characters, lib, ctx = {}) {
   const items = characters.map(ch =>
     `<li><a class="btn" href="#/${esc(ch.id)}"><b>${esc(ch.name)}</b><span>${esc(classLine(ch, lib))}</span></a></li>`).join('');
   const tour = '<li><a class="btn" href="#/tour/1"><b>New here?</b><span>How this page works</span></a></li>';
+  const help = '<li><a class="btn" href="#/help"><b>Look up a word</b><span>What the game words mean</span></a></li>';
   const note = ctx.fallback ? '<p class="muted">Showing the built-in example characters (no private character file found).</p>' : '';
-  return page(bar('Characters'), `${note}<ul class="buttons">${tour}${items}</ul>`);
+  return page(bar('Characters'), `${note}<ul class="buttons">${tour}${items}${help}</ul>`);
 }
 
 export function renderHome(ch, lib, ctx = {}) {
@@ -108,7 +111,8 @@ export function renderHome(ch, lib, ctx = {}) {
     + (role ? part('job', `<p class="job"><b>Your job:</b> ${esc(role.job)}</p>`, ctx) : '')
     + part('stats', `<div class="numbers"><p class="stats">${stats}</p><p class="stats">${uses.join(' · ')}</p>${casting}</div>`, ctx)
     + part('groups', `<div class="groups">${groups}</div>`, ctx)
-    + '<p class="tour-link"><a href="#/tour/1">How this page works</a></p>';
+    + '<p class="tour-link"><a href="#/tour/1">How this page works</a></p>'
+    + `<ul class="buttons help-button"><li><a class="btn" href="#/help/${esc(ch.id)}"><b>Look up a word</b><span>Game words, your features and spells</span></a></li></ul>`;
   return page(bar(ch.name, { href: '#/', label: 'Characters' }, ctx), body);
 }
 
@@ -119,7 +123,7 @@ export function renderHome(ch, lib, ctx = {}) {
 // buttons) and the turn/* pages (inline). Additional details: Your features,
 // Weapons, Spells, Rules basics, each a collapsed subsection when non-empty.
 
-function spellCard(rec, name) {
+export function spellCard(rec, name) {
   return rec
     ? `<div class="card spell" data-id="spell:${esc(slug(rec.name))}"><h3>${esc(rec.name)}</h3><p class="line">${esc(spellLine(rec))}</p>`
       + `<details><summary>Full text</summary>${(rec.details ?? []).map(p => `<p>${esc(p)}</p>`).join('')}</details></div>`
@@ -264,6 +268,10 @@ function additionalDetails(ch, node, lib, ctx, v, pb) {
   return subs ? part('details', `<div class="details"><details class="other"${open ? ' open' : ''}><summary>Additional details</summary>${subs}</details></div>`, ctx) : '';
 }
 
+// The small "Look up a word" link at the end of every other page of a
+// character, after Additional details (so the turn-page measure skips it).
+const helpLink = ch => `<p class="help-link"><a href="#/help/${esc(ch.id)}">Look up a word</a></p>`;
+
 const buttons = links => `<nav class="children"><ul class="buttons">${links.map(([href, label]) => `<li><a class="btn small" href="${esc(href)}">${esc(label)}</a></li>`).join('')}</ul></nav>`;
 
 export function renderNode(ch, node, lib, ctx = {}) {
@@ -302,7 +310,7 @@ export function renderNode(ch, node, lib, ctx = {}) {
   } else if (hasMorePage(node) && otherActions(ch, node, lib, ctx, v, pb)) {
     body += part('more', buttons([[`#/${ch.id}/${node}/${MORE}`, 'Other actions']]), ctx);
   }
-  body += additionalDetails(ch, node, lib, ctx, v, pb);
+  body += additionalDetails(ch, node, lib, ctx, v, pb) + helpLink(ch);
   return page(bar(info.label, back, ctx), body);
 }
 
@@ -312,6 +320,6 @@ export function renderMore(ch, node, lib, ctx = {}) {
   const pb = playbookFor(ch, node, lib, ctx);
   const more = otherActions(ch, node, lib, ctx, v, pb);
   const body = `<p class="sub">${esc(ch.name)} · ${esc(NODES[node].label)}</p>`
-    + (more || '<p class="muted">Nothing else here for this character.</p>');
+    + (more || '<p class="muted">Nothing else here for this character.</p>') + helpLink(ch);
   return page(bar('Other actions', { href: `#/${ch.id}/${node}`, label: NODES[node].label }), body);
 }

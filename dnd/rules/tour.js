@@ -12,7 +12,7 @@ export default [
   { page: 'home', focus: 'stats', text: 'Your numbers: hit points, armour class, speed and more. Below them: what you can use a limited number of times, and your spell slots.' },
   { page: 'home', focus: 'groups', text: 'When something happens at the table, find it here and tap it. **Fight** is combat, **Explore** is everything else, **Any time** is saves, checks and helping a friend.' },
   { page: 'turn', focus: 'first', text: "Tapping **It's my turn** opens this page. **First turn** only matters at the start of a fight." },
-  { page: 'turn', focus: 'do', text: '**Do this** every turn, in order. The numbers are already worked out: **+7 to hit** means roll a d20 and add 7; **1d8+3** is the damage you roll if it hits.' },
+  { page: 'turn', focus: 'do', text: '**Do this** is your usual turn, top to bottom. The numbers are already worked out: **+7 to hit** means roll a d20 and add 7; **1d8+3** is the damage you roll if it hits.' },
   { page: 'turn', focus: 'if', text: 'Glance at **If…** before you act. When one of these is true, do that.' },
   { page: 'turn', focus: 'children', text: 'Need something else? These buttons list every option of each kind. Your spells are under **Cast a spell**.' },
   { page: 'turn/spell', focus: 'spells', text: 'Your save DC, spell attack and slots, then every spell with a one-line summary. Tap **Full text** for the exact rules.' },
