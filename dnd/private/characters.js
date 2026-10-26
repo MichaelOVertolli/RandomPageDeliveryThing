@@ -75,6 +75,5 @@ export default [
     choices: { fightingStyle: 'defense' },
     spells: ['Bless', 'Cure Wounds', 'Shield of Faith', 'Command', 'Aid', 'Magic Weapon', 'Revivify', 'Aura of Vitality', 'Remove Curse'],
     extras: [],
-    notes: { turn: 'Against undead, Turn the Unholy can send a whole crowd of them running.' },
   },
 ];

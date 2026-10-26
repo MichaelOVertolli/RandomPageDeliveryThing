@@ -1,14 +1,15 @@
-// Router + DOM glue only. Routes: #/ (characters), #/<charId>, #/<charId>/<node>.
+// Router + DOM glue only. Routes: #/ (characters), #/<charId>, #/<charId>/<node>,
+// #/<charId>/<node>/more (that node's Other actions).
 // Private files are optional: a missing one is not an error, a broken one is.
 //
 // VERSION busts the Pages cache: bump it on every publish, and use the same
 // stamp in index.html's <script src="app.js?v=...">.
-const VERSION = '2026-10-26b';
+const VERSION = '2026-10-26c';
 
 const { makeLibrary } = await import(`./lib/features.js?v=${VERSION}`);
-const { renderLanding, renderHome, renderNode, renderBanner } = await import(`./lib/render.js?v=${VERSION}`);
+const { renderLanding, renderHome, renderNode, renderMore, renderBanner } = await import(`./lib/render.js?v=${VERSION}`);
 const { libraryGaps } = await import(`./lib/validate.js?v=${VERSION}`);
-const { NODES } = await import(`./rules/tree.js?v=${VERSION}`);
+const { NODES, MORE, hasMorePage } = await import(`./rules/tree.js?v=${VERSION}`);
 const { default: fixtures } = await import(`./fixtures.js?v=${VERSION}`);
 
 const problems = [];
@@ -60,12 +61,16 @@ function route() {
   previous = current;
   current = norm(location.hash);
   const [id, ...rest] = parts();
-  const node = rest.join('/');
+  const more = rest.at(-1) === MORE && hasMorePage(rest.slice(0, -1).join('/'));
+  const node = (more ? rest.slice(0, -1) : rest).join('/');
   const ch = characters.find(c => c.id === id);
   let html;
   if (!ch) {
     html = renderLanding(characters, lib, ctx);
     document.title = 'Characters';
+  } else if (more) {
+    html = renderMore(ch, node, lib, ctx);
+    document.title = `Other actions · ${NODES[node].label} · ${ch.name}`;
   } else if (!NODES[node]) {
     html = renderHome(ch, lib, ctx);
     document.title = ch.name;

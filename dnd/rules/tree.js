@@ -26,3 +26,10 @@ export const NODES = {
 };
 
 export const NODE_IDS = Object.keys(NODES);
+
+// Every top-level node except `turn` has an Other actions sub-page,
+// #/<char>/<node>/more. `turn` links its detail pages instead, and those have none.
+export const MORE = 'more';
+export function hasMorePage(node) {
+  return !!NODES[node] && node !== 'turn' && !NODES[node].parent;
+}

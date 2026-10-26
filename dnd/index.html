@@ -40,6 +40,8 @@
   .first li, .if li { margin: 6px 0; }
   .note { background: var(--card); border: 1px dashed var(--accent); border-radius: 10px; padding: 8px 12px; }
   details.other { margin-top: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 0 12px; }
+  details.sub { border-top: 1px solid var(--line); }
+  details.sub > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font: 600 15px/1.2 system-ui, -apple-system, sans-serif; }
   details.other > summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; font: 600 16px/1.2 system-ui, -apple-system, sans-serif; color: var(--accent); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
   .card p { margin: 4px 0; }
@@ -55,6 +57,6 @@
 <body>
 <div id="app"><p style="padding:16px">Loading…</p></div>
 <noscript><p>This page needs JavaScript.</p></noscript>
-<script type="module" src="app.js?v=2026-10-26b"></script>
+<script type="module" src="app.js?v=2026-10-26c"></script>
 </body>
 </html>

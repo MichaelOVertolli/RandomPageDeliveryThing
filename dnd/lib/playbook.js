@@ -43,10 +43,11 @@ function addonApplies(on, row, usage, ch) {
 
 // "**Longsword** +9 to hit, **1d8+5** slashing (two hands: 1d10+5) · crit on **19–20**"
 // `addons` limits the add-ons to these feature ids (Do this / If… show only the
-// role's signature one); omitted = every add-on (the detail pages).
-export function weaponLine(row, usage, ch, lib, v = vars(ch, lib), addons) {
+// role's signature one); omitted = every add-on (the detail pages). `count`
+// false leaves out the "×2" (in a step it reads as an attack count).
+export function weaponLine(row, usage, ch, lib, v = vars(ch, lib), { addons, count = true } = {}) {
   let s = `**${row.name}**`;
-  if (row.count > 1) s += ` ×${row.count}`;
+  if (count && row.count > 1) s += ` ×${row.count}`;
   if (usage === 'ranged' && !row.ranged) s += ` (thrown ${row.range})`;
   else if (row.ranged) s += ` (${row.range})`;
   s += ` ${signed(row.toHit)} to hit, **${row.damage}** ${row.type}`;
@@ -79,24 +80,29 @@ function spellSlot(name, ch, lib, ctx, short) {
 }
 
 // Resolve one {token}; undefined = the character can't fill it. `page` (one
-// per playbook) keeps each weapon's full line to its first mention and limits
-// add-ons to the role's signature one.
+// per playbook) keeps each weapon's full line to its first mention, limits
+// add-ons to the role's signature one, drops the quantity, and records what
+// the step uses (page.pendingUsed). `page.nameOnly`: weapons by name only
+// (the first-turn line; the numbers go in Do this).
 function resolveToken(tok, ch, lib, ctx, v, page) {
+  const use = (kind, id) => page?.pendingUsed[kind].add(id);
   if (tok.startsWith('weapon.')) {
     const pick = pickWeapon(tok.slice(7), weaponRows(ch, lib));
     if (!pick) return undefined;
     if (!page) return weaponLine(pick[0], pick[1], ch, lib, v);
+    use('weapons', pick[0].id);
     const key = `${pick[0].id}/${pick[1]}`;
-    if (page.shown.has(key)) return `**${pick[0].name}**`;
+    if (page.nameOnly || page.shown.has(key)) return `**${pick[0].name}**`;
     for (const f of activeFeatures(ch, lib)) {
       if (page.addons.includes(f.id) && f.addon && addonApplies(f.addon.on, pick[0], pick[1], ch)) page.pendingAddons.add(f.id);
     }
     page.pending.add(key);
-    return weaponLine(pick[0], pick[1], ch, lib, v, page.addons.filter(a => !page.addonsShown.has(a)));
+    return weaponLine(pick[0], pick[1], ch, lib, v, { addons: page.addons.filter(a => !page.addonsShown.has(a)), count: false });
   }
   if (tok.startsWith('skill.')) {
     const s = skills(ch, lib)[tok.slice(6)];
     if (!s) return undefined;
+    use('skills', s.id);
     const dis = s.id === 'stealth' && stealthDisadvantage(ch, lib) ? ' (disadvantage in your armor)' : '';
     return `**${s.name} ${signed(s.bonus)}**${dis}`;
   }
@@ -108,9 +114,14 @@ function resolveToken(tok, ch, lib, ctx, v, page) {
   if (tok.startsWith('tool.')) {
     const id = tok.slice(5);
     if (!(ch.tools ?? []).includes(id)) return undefined;
+    use('tools', id);
     return `**${lib.tools[id].name} ${signed(toolBonus(ch, id, lib))}**`;
   }
-  if (tok.startsWith('spell:')) return spellSlot(tok.slice(6), ch, lib, ctx, page?.shortSpells);
+  if (tok.startsWith('spell:')) {
+    const r = spellSlot(tok.slice(6), ch, lib, ctx, page?.shortSpells);
+    if (r !== undefined) use('spells', slug(tok.slice(6)));
+    return r;
+  }
   return v[tok] === undefined ? undefined : String(v[tok]);
 }
 
@@ -166,7 +177,7 @@ export function unknownRequirement(req, lib, spells) {
 function gather(ch, node, lib) {
   const role = roleFor(ch, lib);
   const base = role?.playbook?.[node] ?? {};
-  let first = base.first ?? [], doS = base.do ?? [], ifS = base.if ?? [];
+  let first = base.first ?? [], doS = base.do ?? [], ifS = base.if ?? [], more = base.more ?? [];
   for (const rs of lib.roleSteps ?? []) {
     if (rs.role !== role?.id || rs.node !== node) continue;
     if (rs.class && rs.class !== ch.class) continue;
@@ -178,44 +189,63 @@ function gather(ch, node, lib) {
     first = join(first, rs.first);
     doS = join(doS, rs.do);
     ifS = join(ifS, rs.if);
+    more = join(more, rs.more);
   }
   const ov = ch.overrides?.playbook?.[node];
   if (ov) {
     first = ov.first ?? first;
     doS = ov.do ?? doS;
     ifS = ov.if ?? ifS;
+    more = ov.more ?? more;
   }
-  return { role, first, doS, ifS };
+  return { role, first, doS, ifS, more };
 }
 
+const USED_KINDS = ['features', 'spells', 'weapons', 'skills', 'tools'];
+const usedSets = () => Object.fromEntries(USED_KINDS.map(k => [k, new Set()]));
+
 // { role, first, do, if, notes, steps (kept), dropped: [{step, reason}],
-//   fallback (true when "Do this" is the basic action because no role step fit) }.
+//   fallback (true when "Do this" is the basic action because no role step fit),
+//   used: {features, spells (slugs), weapons, skills, tools} — ids the kept
+//   first/Do/If steps use (requires, slots, the signature add-on shown), which
+//   Other actions leaves out — and overflow: [{when, then}] (the node's `more`
+//   Ifs, which a role lists for Other actions, and any If past the cap) }.
 // Reasons: 'unknown id' (a requirement the library doesn't know: a typo),
 // 'level', 'unmet requirement', 'unfilled slot', 'if cap'.
 export function playbookFor(ch, node, lib, ctx = {}) {
   const v = vars(ch, lib);
-  const { role, first, doS, ifS } = gather(ch, node, lib);
+  const { role, first, doS, ifS, more } = gather(ch, node, lib);
   const steps = [];
   const dropped = [];
+  const used = usedSets();
   // The turn page should fit about one phone screen: spells by name only there.
-  const page = {
-    shown: new Set(), pending: new Set(), addonsShown: new Set(), pendingAddons: new Set(),
-    addons: role?.signature ? [role.signature] : [], shortSpells: node === 'turn',
-  };
+  const newPage = () => ({
+    shown: new Set(), pending: new Set(), addonsShown: new Set(), pendingAddons: new Set(), pendingUsed: usedSets(),
+    addons: role?.signature ? [role.signature] : [], shortSpells: node === 'turn', nameOnly: false,
+  });
+  const page = newPage();
   const whyNot = s => {
     if ((s.requires ?? []).some(r => unknownRequirement(r, lib, ctx.spells))) return 'unknown id';
     if ((s.minLevel ?? 1) > ch.level) return 'level';
     if (!meetsRequires(s.requires, ch, lib)) return 'unmet requirement';
     return null;
   };
-  // Resolve all texts of one entry; weapon lines count as shown only if it is kept.
-  const resolveAll = texts => {
+  // Resolve all texts of one entry; weapon lines count as shown, and its ids
+  // as used, only if it is kept.
+  const resolveAll = (texts, step) => {
     page.pending = new Set();
     page.pendingAddons = new Set();
+    page.pendingUsed = usedSets();
     const out = texts.map(t => resolveText(t, ch, lib, ctx, v, page));
     if (out.some(t => t == null)) return null;
     for (const k of page.pending) page.shown.add(k);
-    for (const a of page.pendingAddons) page.addonsShown.add(a);
+    for (const a of page.pendingAddons) { page.addonsShown.add(a); used.features.add(a); }
+    for (const k of USED_KINDS) for (const id of page.pendingUsed[k]) used[k].add(id);
+    for (const r of step?.requires ?? []) {
+      if (r.startsWith('!')) continue;
+      if (r.startsWith('spell:')) used.spells.add(slug(r.slice(6)));
+      else if (lib.features.some(f => f.id === r) || hasFeature(ch, r, lib)) used.features.add(r);
+    }
     return out;
   };
 
@@ -223,7 +253,7 @@ export function playbookFor(ch, node, lib, ctx = {}) {
     const out = [];
     for (const s of list) {
       const reason = whyNot(s);
-      const t = reason ? null : resolveAll([s.text]);
+      const t = reason ? null : resolveAll([s.text], s);
       if (reason || t == null) {
         if (record) dropped.push({ step: s, reason: reason ?? 'unfilled slot' });
         continue;
@@ -234,20 +264,35 @@ export function playbookFor(ch, node, lib, ctx = {}) {
     return out;
   };
 
-  const firstOut = lines(first);
+  // Do this first, so its first weapon mention carries the full line (U1);
+  // the first-turn line then names the weapon only.
   let doOut = lines(doS);
   const fallback = doOut.length === 0;
   if (fallback) doOut = lines(BASIC[node] ?? [], false).slice(0, 1);
+  page.nameOnly = true;
+  const firstOut = lines(first);
+  page.nameOnly = false;
 
   const ifOut = [];
+  const overflow = [];
+  // An Other actions card, resolved on its own (its ids aren't "used").
+  const toOverflow = i => {
+    if (whyNot(i)) return;
+    const own = newPage();
+    const t = [i.when, i.then].map(x => resolveText(x, ch, lib, ctx, v, own));
+    if (t.every(x => x != null)) overflow.push({ when: t[0], then: t[1] });
+  };
   for (const i of ifS) {
     const reason = ifOut.length >= MAX_IF ? 'if cap' : whyNot(i);
-    const t = reason ? null : resolveAll([i.when, i.then]);
+    if (reason === 'if cap') toOverflow(i);
+    const t = reason ? null : resolveAll([i.when, i.then], i);
     if (reason || t == null) { dropped.push({ step: i, reason: reason ?? 'unfilled slot' }); continue; }
     steps.push(i);
     ifOut.push({ when: t[0], then: t[1] });
   }
+  more.forEach(toOverflow);
 
   const notes = ch.notes?.[node];
-  return { role, first: firstOut, do: doOut, if: ifOut, notes, steps, dropped, fallback };
+  const usedOut = Object.fromEntries(USED_KINDS.map(k => [k, [...used[k]]]));
+  return { role, first: firstOut, do: doOut, if: ifOut, notes, steps, dropped, fallback, used: usedOut, overflow };
 }

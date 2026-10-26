@@ -33,7 +33,7 @@ export default {
   ],
   feats: [
     {
-      id: 'sentinel', name: 'Sentinel', nodes: ['defend', 'help'],
+      id: 'sentinel', name: 'Sentinel', action: true, nodes: ['defend', 'help'],
       text: "When you hit with an opportunity attack, the creature's speed drops to 0 for the rest of the turn. Creatures provoke opportunity attacks from you even if they Disengage. Reaction: when a creature within 5 ft of you attacks someone other than you, make a melee weapon attack against it.",
     },
   ],

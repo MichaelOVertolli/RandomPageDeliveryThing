@@ -15,7 +15,7 @@ const STYLES = {
     text: 'Reaction: when a creature you can see attacks an ally within 5 ft of you, give that attack disadvantage. You must be wielding a shield.',
   },
   'two-weapon-fighting': {
-    name: 'Two-Weapon Fighting', nodes: ['turn/bonus', 'turn/melee'],
+    name: 'Two-Weapon Fighting', action: true, nodes: ['turn/bonus', 'turn/melee'],
     text: 'When you attack with a second light weapon as a bonus action, add your ability modifier to its damage.',
   },
 };

@@ -2,10 +2,13 @@
 // vars, never items: {weapon.melee}, {skill.stealth}, {spell:bless}, {attacks}.
 // A step whose `requires` the character doesn't meet, or whose slot it can't
 // fill, is dropped; an empty "Do this" falls back to the basic action
-// (rules/common.js BASIC). At most 3 If… entries per node.
+// (rules/common.js BASIC). At most 3 If… entries per node; `more` lists Ifs
+// shown under Other actions instead (an If displaced from the three).
 // `signature`: the one weapon add-on (a feature id) shown on weapon lines in
 // Do this / If…; the detail pages show every add-on. A weapon's full line
-// appears once per page; later mentions are just its name.
+// appears once per page (the first one inside Do this; the first-turn line
+// names it only); later mentions are just its name. Steps never show a
+// weapon's quantity.
 
 const S = (text, requires) => (requires ? { text, requires } : { text });
 const I = (when, then, requires) => (requires ? { when, then, requires } : { when, then });
@@ -21,7 +24,7 @@ const SECOND_WIND = I('You are below half HP', 'Bonus action: **Second Wind**, r
 const CHECK = {
   do: [
     S('Your best skills: {bestSkills}.'),
-    S('Anything else: open **Other options** for every skill and the ability it uses.'),
+    S('Anything else: open **Other actions** for every skill and the ability it uses.'),
   ],
   if: [I('Someone in the party is better at it', 'Take the **Help** action instead: they roll with advantage.')],
 };
@@ -32,6 +35,9 @@ const QUIET_OR_LOUD = [
 ];
 const LOOK = I('You are the one searching', 'Look first: {skill.perception}; for a mechanism, {skill.investigation}.');
 const STABILIZE = I('An ally is dying and no healer is near', 'Action: stabilize them with {skill.medicine} (DC 10).');
+// Tank roles on "A friend needs help" (not the Striker).
+const SHOVE_TEXT = (extra = '') => `**Shove** it ({skill.athletics}${extra} vs its Athletics/Acrobatics: push it 5 ft away or knock it prone) or **Grapple** it (it can't move away from you; your ally can step away). Each replaces one of your attacks.`;
+const SHOVE = I('An enemy is on your ally', SHOVE_TEXT());
 
 const fighterRest = {
   do: [
@@ -44,7 +50,7 @@ const fighterRest = {
 
 export default {
   defender: {
-    id: 'defender', class: 'fighter', default: true, label: 'Defender',
+    id: 'defender', class: 'fighter', default: true, label: 'Defender', signature: 'improved-critical',
     job: "Stand in front of the people who can't take hits; make enemies deal with you.",
     playbook: {
       turn: {
@@ -52,6 +58,7 @@ export default {
         do: [
           S('Step up to the enemy closest to your allies and stay there.'),
           S('Attack **{attacks}** with {weapon.melee}.'),
+          S('Attack **{attacks}** with {weapon.ranged}.', ['!weapon.melee']),
           S('Hard fight? **Action Surge**: attack **{attacks}** more this turn.', ['action-surge']),
         ],
         if: [
@@ -97,13 +104,13 @@ export default {
           S('When an enemy you can see attacks them, **Protection** (reaction) gives that attack disadvantage.', ['style-protection', 'shield']),
           S('Take the **Help** action when they need advantage more than they need your damage.'),
         ],
-        if: [STABILIZE],
+        if: [SHOVE, STABILIZE],
       },
     },
   },
 
   striker: {
-    id: 'striker', class: 'fighter', label: 'Striker',
+    id: 'striker', class: 'fighter', label: 'Striker', signature: 'improved-critical',
     job: 'Find the most dangerous enemy and hit it as hard as you can.',
     playbook: {
       turn: {
@@ -230,7 +237,11 @@ export default {
       check: CHECK,
       help: {
         do: [S('Get between your ally and whatever is hurting them.'), S('Carry a downed ally out of danger: you are the strongest.')],
-        if: [STABILIZE],
+        if: [
+          I('An enemy is on your ally', SHOVE_TEXT(', advantage while raging,'), ['rage']),
+          I('An enemy is on your ally', SHOVE_TEXT(), ['!rage']),
+          STABILIZE,
+        ],
       },
     },
   },
@@ -398,7 +409,7 @@ export default {
   },
 
   protector: {
-    id: 'protector', class: 'paladin', default: true, label: 'Protector', signature: 'divine-smite',
+    id: 'protector', class: 'paladin', default: true, label: 'Protector',
     job: 'Keep allies inside your aura and on their feet; smite when it matters.',
     playbook: {
       turn: {
@@ -410,10 +421,11 @@ export default {
           S('Fight next to your weakest ally.'),
           S('Attack **{attacks}** with {weapon.melee}.'),
         ],
+        // Smite is a choice after a hit, not part of every swing (U6); Sacred Weapon is under Other actions.
         if: [
-          I('Undead or fiends crowd you', '**Turn the Unholy** (action): Wis save DC **{spellDC}** within 30 ft or they flee.', ['turn-the-unholy']),
+          I('A hit that really matters, or an undead/fiend', '**Divine Smite** after you hit: 2d8 radiant (1st-level slot), +1d8 per higher slot, +1d8 vs undead/fiends.', ['divine-smite']),
           I('An ally is down at 0 HP', 'Action: **Lay on Hands**; even 1 HP gets them up.', ['lay-on-hands']),
-          I('A long, hard fight', '**Sacred Weapon** (action): **{mod.cha}** to hit for 1 minute.', ['sacred-weapon']),
+          I('Undead or fiends crowd you', '**Turn the Unholy** (action): Wis save DC **{spellDC}** within 30 ft or they flee.', ['turn-the-unholy']),
         ],
       },
       defend: {
@@ -484,8 +496,10 @@ export default {
         if: [
           I('Pool empty', 'Cast {spell:cure-wounds}.', ['spell:cure-wounds']),
           I('Someone died in the last minute', 'Cast {spell:revivify}.', ['spell:revivify']),
-          I('Poisoned, blinded, deafened or paralyzed', 'Cast {spell:lesser-restoration}.', ['spell:lesser-restoration']),
+          SHOVE,
         ],
+        // Displaced by the shove/grapple If (U7).
+        more: [I('Poisoned, blinded, deafened or paralyzed', 'Cast {spell:lesser-restoration}.', ['spell:lesser-restoration'])],
       },
     },
   },

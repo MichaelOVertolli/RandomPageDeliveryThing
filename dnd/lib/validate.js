@@ -130,7 +130,7 @@ function checkRequirement(r, where, { lib, spells }, err) {
 }
 
 function checkSteps(block, prefix, ctx, err) {
-  for (const key of ['first', 'do', 'if']) {
+  for (const key of ['first', 'do', 'if', 'more']) {
     (block[key] ?? []).forEach((e, i) => checkEntry(e, `${prefix}: ${key}[${i}]`, ctx, err));
   }
 }

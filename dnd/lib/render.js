@@ -1,10 +1,10 @@
 // (character, node) → HTML string. Pure: no DOM access.
-import { GROUPS, NODES } from '../rules/tree.js';
+import { GROUPS, NODES, MORE, hasMorePage } from '../rules/tree.js';
 import {
   ABILITIES, ABILITY_NAMES, SKILLS, SAVE_TRIGGERS, STANDARD_ACTIONS, DEATH_SAVES, TRAVEL_PACE, RESTS,
   HELP_RULES, CONCENTRATION,
 } from '../rules/common.js';
-import { featuresFor, activeFeatures, visibleNodes, characterSpells, oathSpells, findSpell, spellLine, spellPlacement } from './features.js';
+import { featuresFor, activeFeatures, visibleNodes, characterSpells, oathSpells, findSpell, spellLine, spellPlacement, slug } from './features.js';
 import {
   vars, hpMax, armorClass, speed, initiative, passivePerception, profBonus, signed, saves, skills,
   weaponRows, toolBonus, resistances, stealthDisadvantage, spellSlots,
@@ -18,8 +18,9 @@ export const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 export const md = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const linkify = s => s.replace(/https:\/\/[^\s,]+[^\s,.]/g, u => `<a href="${u}" rel="noopener">${u}</a>`);
 
-// What a page shows before Other options, tags stripped (the turn page should
-// fit about one phone screen; tools/check.js reports this length).
+// What a page shows before the collapsed Additional details, tags stripped
+// (the Other actions button counts; the turn page should fit about one phone
+// screen; tools/check.js reports this length).
 export function visibleText(html) {
   const start = html.indexOf('<main>');
   const end = html.indexOf('<details class="other"');
@@ -66,7 +67,7 @@ function usesText(f, v) {
 
 function featureCard(f, ch, lib, ctx, v) {
   const uses = usesText(f, v);
-  return `<div class="card"><h3>${esc(f.name)}${uses ? ` <span class="uses">${esc(uses)}</span>` : ''}</h3>${f.text ? `<p>${md(featureText(f.text, ch, lib, ctx, v))}</p>` : ''}</div>`;
+  return `<div class="card" data-id="${esc(f.id)}"><h3>${esc(f.name)}${uses ? ` <span class="uses">${esc(uses)}</span>` : ''}</h3>${f.text ? `<p>${md(featureText(f.text, ch, lib, ctx, v))}</p>` : ''}</div>`;
 }
 
 export function renderLanding(characters, lib, ctx = {}) {
@@ -100,6 +101,18 @@ export function renderHome(ch, lib, ctx = {}) {
 }
 
 // ---- node bodies ----
+// A page is Do this → If… → [Other actions] → Additional details ▸.
+// Other actions: the alternatives Do this / If… don't already use (by id),
+// with numbers; a sub-page #/<char>/<node>/more, except on turn (its detail
+// buttons) and the turn/* pages (inline). Additional details: Your features,
+// Weapons, Spells, Rules basics, each a collapsed subsection when non-empty.
+
+function spellCard(rec, name) {
+  return rec
+    ? `<div class="card spell" data-id="spell:${esc(slug(rec.name))}"><h3>${esc(rec.name)}</h3><p class="line">${esc(spellLine(rec))}</p>`
+      + `<details><summary>Full text</summary>${(rec.details ?? []).map(p => `<p>${esc(p)}</p>`).join('')}</details></div>`
+    : `<div class="card spell" data-id="spell:${esc(slug(name))}"><h3>${esc(name)}</h3><p class="muted">Spell text not loaded.</p></div>`;
+}
 
 function spellCards(ch, lib, ctx, filter = () => true, names = characterSpells(ch, lib)) {
   const cards = [];
@@ -107,94 +120,137 @@ function spellCards(ch, lib, ctx, filter = () => true, names = characterSpells(c
     const rec = findSpell(ctx.spells, name);
     if (rec && !filter(rec)) continue;
     if (!rec && filter !== ALL) continue;
-    cards.push(rec
-      ? `<div class="card spell"><h3>${esc(rec.name)}</h3><p class="line">${esc(spellLine(rec))}</p>`
-        + `<details><summary>Full text</summary>${(rec.details ?? []).map(p => `<p>${esc(p)}</p>`).join('')}</details></div>`
-      : `<div class="card spell"><h3>${esc(name)}</h3><p class="muted">Spell text not loaded.</p></div>`);
+    cards.push(spellCard(rec, name));
   }
   return cards.join('');
 }
 const ALL = () => true;
 
 const list = items => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+const idList = items => (items.length ? `<ul>${items.map(([id, h]) => `<li data-id="${esc(id)}">${h}</li>`).join('')}</ul>` : '');
 const skillLine = s => `<b>${esc(s.name)} ${signed(s.bonus)}</b>${s.expertise ? ' (expertise)' : s.prof ? ' (proficient)' : ''}`;
+const subsection = (title, html) => (html ? `<details class="sub"><summary>${esc(title)}</summary>${html}</details>` : '');
 
-function nodeExtras(ch, node, lib, ctx, v) {
+// A feature you choose to use (an action, bonus action or reaction, a limited
+// use, a weapon add-on), as opposed to one that just applies. `action: true`
+// marks one whose text doesn't start with the action it takes.
+function isAction(f) {
+  return !!(f.uses || f.addon || f.action) || /^(Action|Bonus action|Reaction|Channel Divinity)\b/.test(f.text ?? '');
+}
+
+
+// The Other actions list for (character, node): [[data-id, html]] blocks.
+// `pb` is the node's playbook; turn/other also leaves out what `turn` uses,
+// since it is the turn page's Other actions.
+function otherActions(ch, node, lib, ctx, v, pb) {
+  const used = { ...pb.used };
+  let feats = featuresFor(ch, node, lib);
+  if (node === 'turn/other') {
+    const turn = playbookFor(ch, 'turn', lib, ctx).used;
+    for (const k of Object.keys(used)) used[k] = [...used[k], ...turn[k]];
+    feats = [...feats, ...featuresFor(ch, 'turn', lib).filter(f => !feats.some(g => g.id === f.id))];
+  }
+  const has = (kind, id) => used[kind].includes(id);
   const sk = skills(ch, lib);
   const rows = weaponRows(ch, lib);
   const out = [];
+  const skillItems = ids => idList(ids.filter(id => sk[id] && !has('skills', id)).map(id => [`skill:${id}`, skillLine(sk[id])]));
+  const toolItems = () => (ch.tools ?? []).filter(t => !has('tools', t))
+    .map(t => [`tool:${t}`, `<b>${esc(lib.tools[t]?.name ?? t)} ${signed(toolBonus(ch, t, lib) ?? 0)}</b>`]);
+  const weaponItems = (list, usage) => idList(list.filter(r => !has('weapons', r.id)).map(r => [`weapon:${r.id}`, md(weaponLine(r, usage(r), ch, lib, v))]));
+
   switch (node) {
-    case 'turn':
-      out.push(list(rows.map(r => md(weaponLine(r, r.ranged ? 'ranged' : 'melee', ch, lib, v)))));
-      break;
-    case 'turn/melee':
-      out.push(list(rows.filter(r => r.kind === 'melee').map(r => md(weaponLine(r, 'melee', ch, lib, v)))));
-      break;
-    case 'turn/ranged':
-      out.push(list(rows.filter(r => r.ranged || r.thrown).map(r => md(weaponLine(r, 'ranged', ch, lib, v)))));
-      out.push('<p>Disadvantage when an enemy is within 5 ft of you, or beyond the first range number.</p>');
-      break;
-    case 'turn/bonus':
-      out.push(spellCards(ch, lib, ctx, s => spellPlacement(s).includes('turn/bonus')));
-      break;
-    case 'turn/other':
-      out.push(list(STANDARD_ACTIONS.map(([n, t]) => `<b>${esc(n)}</b>: ${esc(t)}`)));
-      break;
+    case 'turn/melee': out.push(weaponItems(rows.filter(r => r.kind === 'melee'), () => 'melee')); break;
+    case 'turn/ranged': out.push(weaponItems(rows.filter(r => r.ranged || r.thrown), () => 'ranged')); break;
+    case 'turn/other': out.push(idList(STANDARD_ACTIONS.map(([n, t]) => [`action:${slug(n)}`, `<b>${esc(n)}</b>: ${esc(t)}`]))); break;
     case 'defend': {
       const melee = rows.find(r => r.kind === 'melee');
-      if (melee) out.push(`<p>Opportunity attack (reaction, when an enemy leaves your reach): ${md(weaponLine(melee, 'melee', ch, lib, v))}</p>`);
-      if (characterSpells(ch, lib).length) out.push(`<p>${esc(CONCENTRATION)} Your Con save: <b>${signed(saves(ch, lib).con.bonus)}</b>.</p>`);
-      out.push(spellCards(ch, lib, ctx, s => spellPlacement(s).includes('defend')));
+      if (melee && !has('weapons', melee.id)) out.push(idList([[`weapon:${melee.id}`, `Opportunity attack (reaction, when an enemy leaves your reach): ${md(weaponLine(melee, 'melee', ch, lib, v))}`]]));
       break;
     }
-    case 'hurt':
-      out.push(`<p>HP max <b>${hpMax(ch, lib)}</b> · Hit dice <b>${esc(v.hitDice)}</b></p>`, list(DEATH_SAVES.map(esc)));
-      break;
-    case 'explore':
-      out.push(`<p>Speed <b>${speed(ch, lib)} ft</b> · ${skillLine(sk.perception)} · ${skillLine(sk.survival)} · Passive Perception <b>${passivePerception(ch, lib)}</b></p>`, list(TRAVEL_PACE.map(esc)));
-      break;
-    case 'social':
-      out.push(list(['persuasion', 'deception', 'intimidation', 'performance', 'insight'].map(id => skillLine(sk[id]))));
-      break;
+    case 'explore': out.push(skillItems(['perception', 'survival'])); break;
+    case 'social': out.push(skillItems(['persuasion', 'deception', 'intimidation', 'performance', 'insight'])); break;
     case 'sneak':
-      out.push(`<p>${skillLine(sk.stealth)}${stealthDisadvantage(ch, lib) ? ' · <b>disadvantage</b> in your armor' : ''}</p>`);
-      out.push(spellCards(ch, lib, ctx, s => s.name.toLowerCase() === 'pass without trace'));
+      if (!has('skills', 'stealth')) out.push(idList([['skill:stealth', `${skillLine(sk.stealth)}${stealthDisadvantage(ch, lib) ? ' · <b>disadvantage</b> in your armor' : ''}`]]));
       break;
-    case 'search': {
-      const tools = (ch.tools ?? []).map(t => `<b>${esc(lib.tools[t]?.name ?? t)} ${signed(toolBonus(ch, t, lib) ?? 0)}</b>`);
-      out.push(list([skillLine(sk.perception), skillLine(sk.investigation), ...tools]), `<p>${esc(HELP_RULES[0])}</p>`);
-      break;
-    }
-    case 'rest': {
-      const per = p => activeFeatures(ch, lib).filter(f => f.uses?.per === p).map(f => esc(f.name));
-      const sr = per('SR'), lr = per('LR');
-      out.push(list(RESTS.map(esc)));
-      if (sr.length) out.push(`<p>Back after a short rest: ${sr.join(', ')}.</p>`);
-      if (lr.length || v.slots) out.push(`<p>Back after a long rest: ${[...lr, ...(v.slots ? ['spell slots'] : [])].join(', ')}.</p>`);
-      break;
-    }
+    case 'search': out.push(skillItems(['perception', 'investigation']), idList(toolItems())); break;
     case 'save': {
       const sv = saves(ch, lib);
-      out.push(list(ABILITIES.map(a => `<b>${ABILITY_NAMES[a]} ${signed(sv[a].bonus)}</b>${sv[a].prof ? ' (proficient)' : ''}: ${esc(SAVE_TRIGGERS[a])}`)));
+      out.push(idList(ABILITIES.map(a => [`save:${a}`, `<b>${ABILITY_NAMES[a]} ${signed(sv[a].bonus)}</b>${sv[a].prof ? ' (proficient)' : ''}: ${esc(SAVE_TRIGGERS[a])}`])));
       break;
     }
     case 'check': {
-      const byAbility = ABILITIES.map(a => {
-        const these = Object.values(sk).filter(s => s.ability === a);
-        if (!these.length) return '';
-        return `<h3>${ABILITY_NAMES[a]}</h3>${list(these.map(s => `${skillLine(s)}: ${esc(SKILLS[s.id].when)}`))}`;
-      }).join('');
-      const tools = (ch.tools ?? []).map(t => `<b>${esc(lib.tools[t]?.name ?? t)} ${signed(toolBonus(ch, t, lib) ?? 0)}</b>`);
-      out.push(byAbility, tools.length ? `<h3>Tools</h3>${list(tools)}` : '', `<p>Passive Perception <b>${passivePerception(ch, lib)}</b></p>`);
+      out.push(ABILITIES.map(a => {
+        const these = Object.values(sk).filter(s => s.ability === a && !has('skills', s.id));
+        return these.length ? `<h3>${ABILITY_NAMES[a]}</h3>${idList(these.map(s => [`skill:${s.id}`, `${skillLine(s)}: ${esc(SKILLS[s.id].when)}`]))}` : '';
+      }).join(''));
+      const tools = toolItems();
+      if (tools.length) out.push(`<h3>Tools</h3>${idList(tools)}`);
       break;
     }
-    case 'help':
-      out.push(list(HELP_RULES.map(esc)), `<p>${skillLine(sk.medicine)}</p>`);
-      break;
+    case 'help': out.push(skillItems(['medicine'])); break;
     default:
   }
+  // Spells placed on this node that Do this / If… don't cast.
+  const spellFilter = {
+    'turn/bonus': s => spellPlacement(s).includes('turn/bonus'),
+    defend: s => spellPlacement(s).includes('defend'),
+    sneak: s => s.name.toLowerCase() === 'pass without trace',
+  }[node];
+  if (spellFilter) out.push(spellCards(ch, lib, ctx, s => spellFilter(s) && !has('spells', slug(s.name))));
+  out.push(feats.filter(f => isAction(f) && !has('features', f.id)).map(f => featureCard(f, ch, lib, ctx, v)).join(''));
+  // Ifs past the cap.
+  out.push(pb.overflow.map((i, k) => `<div class="card" data-id="if:${k}"><p><b>${md(i.when)}</b> → ${md(i.then)}</p></div>`).join(''));
   return out.join('');
 }
+
+function additionalDetails(ch, node, lib, ctx, v, pb) {
+  const usedF = new Set(pb.used.features);
+  const features = [
+    ...activeFeatures(ch, lib).filter(f => usedF.has(f.id) && f.text),
+    ...featuresFor(ch, node, lib).filter(f => !isAction(f) && !usedF.has(f.id)),
+  ];
+  const seen = new Set();
+  const featureHtml = features.filter(f => !seen.has(f.id) && seen.add(f.id)).map(f => featureCard(f, ch, lib, ctx, v)).join('');
+
+  const rows = weaponRows(ch, lib);
+  const shown = node === 'turn' ? rows : rows.filter(r => pb.used.weapons.includes(r.id));
+  // A thrown weapon shows its range, unless it is also the melee weapon.
+  const melee = rows.find(r => r.kind === 'melee');
+  const usage = node === 'turn/melee' ? () => 'melee' : node === 'turn/ranged' ? () => 'ranged'
+    : r => (r.ranged || (r.thrown && r !== melee) ? 'ranged' : 'melee');
+  const weaponHtml = shown.length ? list(shown.map(r => md(weaponLine(r, usage(r), ch, lib, v)))) : '';
+
+  const names = node === 'turn/spell' ? [] : characterSpells(ch, lib).filter(n => pb.used.spells.includes(slug(n)));
+  const spellHtml = names.map(n => spellCard(findSpell(ctx.spells, n), n)).join('');
+
+  const rules = [];
+  switch (node) {
+    case 'turn/ranged': rules.push('<p>Disadvantage when an enemy is within 5 ft of you, or beyond the first range number.</p>'); break;
+    case 'defend':
+      if (characterSpells(ch, lib).length) rules.push(`<p>${esc(CONCENTRATION)} Your Con save: <b>${signed(saves(ch, lib).con.bonus)}</b>.</p>`);
+      break;
+    case 'hurt': rules.push(`<p>HP max <b>${hpMax(ch, lib)}</b> · Hit dice <b>${esc(v.hitDice)}</b></p>`, list(DEATH_SAVES.map(esc))); break;
+    case 'explore': rules.push(`<p>Speed <b>${speed(ch, lib)} ft</b> · Passive Perception <b>${passivePerception(ch, lib)}</b></p>`, list(TRAVEL_PACE.map(esc))); break;
+    case 'search': rules.push(`<p>${esc(HELP_RULES[0])}</p>`); break;
+    case 'rest': {
+      const per = p => activeFeatures(ch, lib).filter(f => f.uses?.per === p).map(f => esc(f.name));
+      const sr = per('SR'), lr = per('LR');
+      rules.push(list(RESTS.map(esc)));
+      if (sr.length) rules.push(`<p>Back after a short rest: ${sr.join(', ')}.</p>`);
+      if (lr.length || v.slots) rules.push(`<p>Back after a long rest: ${[...lr, ...(v.slots ? ['spell slots'] : [])].join(', ')}.</p>`);
+      break;
+    }
+    case 'check': rules.push(`<p>Passive Perception <b>${passivePerception(ch, lib)}</b></p>`); break;
+    case 'help': rules.push(list(HELP_RULES.map(esc))); break;
+    default:
+  }
+  const subs = subsection('Your features', featureHtml) + subsection('Weapons', weaponHtml)
+    + subsection('Spells', spellHtml) + subsection('Rules basics', rules.join(''));
+  return subs ? `<details class="other"><summary>Additional details</summary>${subs}</details>` : '';
+}
+
+const buttons = links => `<nav class="children"><ul class="buttons">${links.map(([href, label]) => `<li><a class="btn small" href="${esc(href)}">${esc(label)}</a></li>`).join('')}</ul></nav>`;
 
 export function renderNode(ch, node, lib, ctx = {}) {
   const info = NODES[node];
@@ -215,9 +271,7 @@ export function renderNode(ch, node, lib, ctx = {}) {
 
   if (info.children) {
     const visible = new Set(visibleNodes(ch, lib));
-    const links = info.children.filter(c => visible.has(c))
-      .map(c => `<li><a class="btn small" href="#/${esc(ch.id)}/${c}">${esc(NODES[c].label)}</a></li>`).join('');
-    body += `<nav class="children"><ul class="buttons">${links}</ul></nav>`;
+    body += buttons(info.children.filter(c => visible.has(c)).map(c => [`#/${ch.id}/${c}`, NODES[c].label]));
   }
   if (node === 'turn/spell') {
     const head = v.spellDC ? `<p class="stats">Spell DC <b>${v.spellDC}</b> · Spell attack <b>${v.spellAttack}</b> · Slots ${md(v.slots)}</p>` : '';
@@ -227,8 +281,23 @@ export function renderNode(ch, node, lib, ctx = {}) {
     body += `<section class="spells"><h2>Your spells</h2>${head}${spellCards(ch, lib, ctx, ALL, own) || (oathCards ? '' : '<p class="muted">No spells.</p>')}</section>`;
     if (oathCards) body += `<section class="spells"><h2>Always prepared (oath)</h2>${oathCards}</section>`;
   }
-
-  const cards = featuresFor(ch, node, lib).map(f => featureCard(f, ch, lib, ctx, v)).join('');
-  body += `<details class="other"><summary>Other options</summary>${nodeExtras(ch, node, lib, ctx, v)}${cards}</details>`;
+  if (info.parent) {
+    // turn/* pages list their Other actions inline.
+    const more = otherActions(ch, node, lib, ctx, v, pb);
+    if (more) body += `<section class="more"><h2>Other actions</h2>${more}</section>`;
+  } else if (hasMorePage(node) && otherActions(ch, node, lib, ctx, v, pb)) {
+    body += buttons([[`#/${ch.id}/${node}/${MORE}`, 'Other actions']]);
+  }
+  body += additionalDetails(ch, node, lib, ctx, v, pb);
   return page(bar(info.label, back), body);
+}
+
+// #/<char>/<node>/more: the node's Other actions (two taps from home).
+export function renderMore(ch, node, lib, ctx = {}) {
+  const v = vars(ch, lib);
+  const pb = playbookFor(ch, node, lib, ctx);
+  const more = otherActions(ch, node, lib, ctx, v, pb);
+  const body = `<p class="sub">${esc(ch.name)} · ${esc(NODES[node].label)}</p>`
+    + (more || '<p class="muted">Nothing else here for this character.</p>');
+  return page(bar('Other actions', { href: `#/${ch.id}/${node}`, label: NODES[node].label }), body);
 }

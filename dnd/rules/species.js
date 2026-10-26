@@ -82,7 +82,7 @@ export const SPECIES = {
     traits: [
       darkvision,
       { id: 'hellish-resistance', name: 'Hellish Resistance', nodes: ['defend'], text: 'Resistance to fire damage.' },
-      { id: 'infernal-legacy', name: 'Infernal Legacy', nodes: ['turn/spell', 'turn/other'], text: 'You know the thaumaturgy cantrip. From 3rd level, cast hellish rebuke (as 2nd level) once per long rest; from 5th, darkness once per long rest. Cha is your spellcasting ability.' },
+      { id: 'infernal-legacy', name: 'Infernal Legacy', action: true, nodes: ['turn/spell', 'turn/other'], text: 'You know the thaumaturgy cantrip. From 3rd level, cast hellish rebuke (as 2nd level) once per long rest; from 5th, darkness once per long rest. Cha is your spellcasting ability.' },
     ],
   },
 };
