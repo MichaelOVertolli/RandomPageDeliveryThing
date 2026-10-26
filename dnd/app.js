@@ -6,7 +6,7 @@
 //
 // VERSION busts the Pages cache: bump it on every publish, and use the same
 // stamp in index.html's <script src="app.js?v=...">.
-const VERSION = '2026-10-26e';
+const VERSION = '2026-10-26f';
 
 const { makeLibrary } = await import(`./lib/features.js?v=${VERSION}`);
 const { renderLanding, renderHome, renderNode, renderMore, renderBanner } = await import(`./lib/render.js?v=${VERSION}`);

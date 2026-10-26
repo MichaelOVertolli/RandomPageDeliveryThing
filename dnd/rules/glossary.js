@@ -10,7 +10,7 @@ export const TOPICS = [
 
 const t = (topic, entries) => entries.map(([term, aliases, text]) => ({ term, aliases, topic, text }));
 
-export default [
+const GLOSSARY = [
   ...t('Dice and rolls', [
     ['d20 roll', ['d20+N', 'd20', 'roll a d20'], 'Roll the twenty-sided die and add the number shown. Persuasion d20+5: roll a d20 and add 5, so a roll of 12 makes 17. A plain d20 means add nothing. The DM then says whether the total is enough.'],
     ['Dice notation', ['1d8+3', 'XdY', 'dice', 'd4', 'd6', 'd8', 'd10', 'd12'], 'How many dice, which die, and what to add. 1d8+3: roll one eight-sided die and add 3 (4 to 11). 2d6: roll two six-sided dice and add them up. Dice are named by their sides: d4, d6, d8, d10, d12, d20.'],
@@ -124,9 +124,9 @@ export default [
     ['Exhaustion', ['exhausted'], 'Comes in levels 1 to 6. 1: disadvantage on checks. 2: speed halved. 3: disadvantage on attacks and saves. 4: HP max halved. 5: speed 0. 6: death. A long rest with food and water removes one level.'],
   ]),
   ...t('Dropping to 0', [
-    ['Death saving throws', ['dying', 'death saves', 'death save', '0 HP'], 'At 0 HP you are dying. At the start of each of your turns roll a d20: 10 or more is a success, less is a failure. Three successes: stable. Three failures: dead. A natural 20 brings you back with 1 HP; a natural 1 is two failures.'],
-    ['Stabilize', ['stable'], 'Stop a dying creature\'s death saves: an action and a Medicine check (DC 10), or any healing. A stable creature stays unconscious at 0 HP and wakes with 1 HP after 1d4 hours.'],
-    ['Instant death', ['massive damage'], 'If damage drops you to 0 HP and what is left over equals or beats your HP max, you die at once. HP max 40, at 10 HP you take 50: 40 left over, so you die. Damage while you are dying is a failed death save.'],
+    ['Death saving throws', ['dying', 'death saves', 'death save', '0 HP'], 'At 0 HP you fall unconscious and are dying. At the start of each of your turns roll a d20: 10 or more is a success, less is a failure. Three successes: stable. Three failures: dead. A natural 20 brings you back with 1 HP; a natural 1 is two failures.'],
+    ['Stabilize', ['stable'], 'Stop a dying creature\'s death saves: an action and a Medicine check (DC 10). A stable creature stays unconscious at 0 HP and wakes with 1 HP after 1d4 hours. Any healing wakes you with that many HP.'],
+    ['Instant death', ['massive damage'], 'If damage drops you to 0 HP and what is left over equals or beats your HP max, you die at once. HP max 40, at 10 HP you take 50: 40 left over, so you die. Damage while you are dying is a failed death save; a critical hit counts as two failures.'],
   ]),
   ...t('Spells', [
     ['Spell slot', ['Spell slots', 'slots', 'slot'], 'What you spend to cast a spell. Spell slots 4/3/2: four 1st-level, three 2nd-level and two 3rd-level slots. A higher slot makes some spells stronger. All slots come back on a long rest.'],
@@ -155,3 +155,12 @@ export default [
     ['Creature type', ['undead', 'fiend', 'fiends', 'beast', 'beasts', 'celestial', 'fey', 'construct', 'monster type'], 'What kind of thing a creature is: beast, undead, fiend, celestial, fey, construct, dragon and so on. Some features care: Divine Smite hits undead and fiends harder; Divine Sense finds celestials, fiends and undead.'],
   ]),
 ];
+export default GLOSSARY;
+
+// The entry for `term` (exact). Throws on an unknown term, so a page showing
+// an entry fails loudly when the entry is renamed.
+export function glossaryEntry(term) {
+  const e = GLOSSARY.find(x => x.term === term);
+  if (!e) throw new Error(`glossary: no entry "${term}"`);
+  return e;
+}

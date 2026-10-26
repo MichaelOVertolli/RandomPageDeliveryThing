@@ -1,9 +1,7 @@
 // (character, node) → HTML string. Pure: no DOM access.
 import { GROUPS, NODES, MORE, hasMorePage } from '../rules/tree.js';
-import {
-  ABILITIES, ABILITY_NAMES, SKILLS, SAVE_TRIGGERS, STANDARD_ACTIONS, DEATH_SAVES, TRAVEL_PACE, RESTS,
-  HELP_RULES, CONCENTRATION,
-} from '../rules/common.js';
+import { ABILITIES, ABILITY_NAMES, SKILLS, SAVE_TRIGGERS, STANDARD_ACTIONS } from '../rules/common.js';
+import { glossaryEntry } from '../rules/glossary.js';
 import { featuresFor, activeFeatures, visibleNodes, characterSpells, oathSpells, findSpell, spellLine, spellPlacement, slug } from './features.js';
 import {
   vars, hpMax, armorClass, speed, initiative, passivePerception, profBonus, signed, d20, saves, skills,
@@ -81,13 +79,21 @@ export function featureCard(f, ch, lib, ctx, v) {
   return `<div class="card" data-id="${esc(f.id)}"><h3>${esc(f.name)}${uses ? ` <span class="uses">${esc(uses)}</span>` : ''}</h3>${f.text ? `<p>${md(featureText(f.text, ch, lib, ctx, v))}</p>` : ''}</div>`;
 }
 
+// The bottom of every page but the help page and tour steps: the "Look up a
+// word" button, then (`tourLink`: the list and homes) "How this page works".
+// It comes after Additional details, so the turn-page measure skips it.
+function pageEnd(helpHref, ctx, tourLink = false) {
+  if (ctx?.tour) return '';
+  return `<div class="page-end"><ul class="buttons"><li><a class="btn small" href="${esc(helpHref)}">Look up a word</a></li></ul>`
+    + `${tourLink ? '<p class="tour-link"><a href="#/tour/1">How this page works</a></p>' : ''}</div>`;
+}
+
 export function renderLanding(characters, lib, ctx = {}) {
   const items = characters.map(ch =>
     `<li><a class="btn" href="#/${esc(ch.id)}"><b>${esc(ch.name)}</b><span>${esc(classLine(ch, lib))}</span></a></li>`).join('');
-  const tour = '<li><a class="btn" href="#/tour/1"><b>New here?</b><span>How this page works</span></a></li>';
-  const help = '<li><a class="btn" href="#/help"><b>Look up a word</b><span>What the game words mean</span></a></li>';
+  const tour = '<li><a class="btn intro" href="#/tour/1"><b>New here?</b><span>How this page works</span><span class="arrow" aria-hidden="true">›</span></a></li>';
   const note = ctx.fallback ? '<p class="muted">Showing the built-in example characters (no private character file found).</p>' : '';
-  return page(bar('Characters'), `${note}<ul class="buttons">${tour}${items}${help}</ul>`);
+  return page(bar('Characters'), `${note}<ul class="buttons">${tour}${items}</ul>${pageEnd('#/help', ctx, true)}`);
 }
 
 export function renderHome(ch, lib, ctx = {}) {
@@ -111,8 +117,7 @@ export function renderHome(ch, lib, ctx = {}) {
     + (role ? part('job', `<p class="job"><b>Your job:</b> ${esc(role.job)}</p>`, ctx) : '')
     + part('stats', `<div class="numbers"><p class="stats">${stats}</p><p class="stats">${uses.join(' · ')}</p>${casting}</div>`, ctx)
     + part('groups', `<div class="groups">${groups}</div>`, ctx)
-    + '<p class="tour-link"><a href="#/tour/1">How this page works</a></p>'
-    + `<ul class="buttons help-button"><li><a class="btn" href="#/help/${esc(ch.id)}"><b>Look up a word</b><span>Game words, your features and spells</span></a></li></ul>`;
+    + pageEnd(`#/help/${ch.id}`, ctx, true);
   return page(bar(ch.name, { href: '#/', label: 'Characters' }, ctx), body);
 }
 
@@ -145,6 +150,8 @@ const ALL = () => true;
 const list = items => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
 const idList = items => (items.length ? `<ul>${items.map(([id, h]) => `<li data-id="${esc(id)}">${h}</li>`).join('')}</ul>` : '');
 const skillLine = s => `<b>${esc(s.name)} ${d20(s.bonus)}</b>${s.expertise ? ' (expertise)' : s.prof ? ' (proficient)' : ''}`;
+// A glossary entry as the help page words it: the term in bold, then its text.
+const rule = term => { const e = glossaryEntry(term); return `<p><b>${esc(e.term)}</b>: ${md(e.text)}</p>`; };
 const subsection = (title, html, open) => (html ? `<details class="sub"${open ? ' open' : ''}><summary>${esc(title)}</summary>${html}</details>` : '');
 
 // A feature you choose to use (an action, bonus action or reaction, a limited
@@ -240,25 +247,28 @@ function additionalDetails(ch, node, lib, ctx, v, pb) {
   const names = node === 'turn/spell' ? [] : characterSpells(ch, lib).filter(n => pb.used.spells.includes(slug(n)));
   const spellHtml = names.map(n => spellCard(findSpell(ctx.spells, n), n)).join('');
 
+  // Rules basics: the character's numbers, and each general rule as its
+  // glossary entry, worded exactly as on the help page.
   const rules = [];
+  const entries = (...terms) => terms.map(rule);
   switch (node) {
-    case 'turn/ranged': rules.push('<p>Disadvantage when an enemy is within 5 ft of you, or beyond the first range number.</p>'); break;
+    case 'turn/ranged': rules.push(...entries('Ranged')); break;
     case 'defend':
-      if (characterSpells(ch, lib).length) rules.push(`<p>${esc(CONCENTRATION)} Your Con save: <b>${d20(saves(ch, lib).con.bonus)}</b>.</p>`);
+      if (characterSpells(ch, lib).length) rules.push(...entries('Concentration'), `<p>Your Con save: <b>${d20(saves(ch, lib).con.bonus)}</b>.</p>`);
       break;
-    case 'hurt': rules.push(`<p>HP max <b>${hpMax(ch, lib)}</b> · Hit dice <b>${esc(v.hitDice)}</b></p>`, list(DEATH_SAVES.map(esc))); break;
-    case 'explore': rules.push(`<p>Speed <b>${speed(ch, lib)} ft</b> · Passive Perception <b>${passivePerception(ch, lib)}</b></p>`, list(TRAVEL_PACE.map(esc))); break;
-    case 'search': rules.push(`<p>${esc(HELP_RULES[0])}</p>`); break;
+    case 'hurt': rules.push(`<p>HP max <b>${hpMax(ch, lib)}</b> · Hit dice <b>${esc(v.hitDice)}</b></p>`, ...entries('Death saving throws', 'Instant death', 'Stabilize')); break;
+    case 'explore': rules.push(`<p>Speed <b>${speed(ch, lib)} ft</b> · Passive Perception <b>${passivePerception(ch, lib)}</b></p>`, ...entries('Travel pace')); break;
+    case 'search': rules.push(...entries('Help')); break;
     case 'rest': {
       const per = p => activeFeatures(ch, lib).filter(f => f.uses?.per === p).map(f => esc(f.name));
       const sr = per('SR'), lr = per('LR');
-      rules.push(list(RESTS.map(esc)));
+      rules.push(...entries('Short rest', 'Long rest', 'Hit dice'));
       if (sr.length) rules.push(`<p>Back after a short rest: ${sr.join(', ')}.</p>`);
       if (lr.length || v.slots) rules.push(`<p>Back after a long rest: ${[...lr, ...(v.slots ? ['spell slots'] : [])].join(', ')}.</p>`);
       break;
     }
     case 'check': rules.push(`<p>Passive Perception <b>${passivePerception(ch, lib)}</b></p>`); break;
-    case 'help': rules.push(list(HELP_RULES.map(esc))); break;
+    case 'help': rules.push(...entries('Help', 'Stabilize')); break;
     default:
   }
   // The tour's Additional details step shows it, and its first subsection, open.
@@ -268,9 +278,6 @@ function additionalDetails(ch, node, lib, ctx, v, pb) {
   return subs ? part('details', `<div class="details"><details class="other"${open ? ' open' : ''}><summary>Additional details</summary>${subs}</details></div>`, ctx) : '';
 }
 
-// The small "Look up a word" link at the end of every other page of a
-// character, after Additional details (so the turn-page measure skips it).
-const helpLink = ch => `<p class="help-link"><a href="#/help/${esc(ch.id)}">Look up a word</a></p>`;
 
 const buttons = links => `<nav class="children"><ul class="buttons">${links.map(([href, label]) => `<li><a class="btn small" href="${esc(href)}">${esc(label)}</a></li>`).join('')}</ul></nav>`;
 
@@ -310,7 +317,7 @@ export function renderNode(ch, node, lib, ctx = {}) {
   } else if (hasMorePage(node) && otherActions(ch, node, lib, ctx, v, pb)) {
     body += part('more', buttons([[`#/${ch.id}/${node}/${MORE}`, 'Other actions']]), ctx);
   }
-  body += additionalDetails(ch, node, lib, ctx, v, pb) + helpLink(ch);
+  body += additionalDetails(ch, node, lib, ctx, v, pb) + pageEnd(`#/help/${ch.id}`, ctx);
   return page(bar(info.label, back, ctx), body);
 }
 
@@ -320,6 +327,6 @@ export function renderMore(ch, node, lib, ctx = {}) {
   const pb = playbookFor(ch, node, lib, ctx);
   const more = otherActions(ch, node, lib, ctx, v, pb);
   const body = `<p class="sub">${esc(ch.name)} · ${esc(NODES[node].label)}</p>`
-    + (more || '<p class="muted">Nothing else here for this character.</p>') + helpLink(ch);
+    + (more || '<p class="muted">Nothing else here for this character.</p>') + pageEnd(`#/help/${ch.id}`, ctx);
   return page(bar('Other actions', { href: `#/${ch.id}/${node}`, label: NODES[node].label }), body);
 }

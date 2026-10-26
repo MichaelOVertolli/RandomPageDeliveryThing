@@ -48,31 +48,6 @@ export const STANDARD_ACTIONS = [
   ['Grapple / Shove', 'Replace one attack: Athletics against their Athletics or Acrobatics. Grappled = speed 0; shoved = prone or 5 ft away.'],
 ];
 
-export const DEATH_SAVES = [
-  'At 0 HP you are unconscious. At the start of each of your turns, roll a d20: 10 or more is a success, less is a failure.',
-  'Three successes: you are stable at 0 HP. Three failures: you die. A natural 1 counts as two failures; a natural 20 brings you back with 1 HP.',
-  'Taking damage at 0 HP is a failed death save (a critical hit is two). Damage of your full HP maximum or more in one go kills you outright.',
-  'Any healing brings you back conscious with that many HP.',
-];
-
-export const TRAVEL_PACE = [
-  'Fast: 4 miles an hour, −5 to passive Perception.',
-  'Normal: 3 miles an hour.',
-  'Slow: 2 miles an hour, and you can move stealthily.',
-];
-
-export const RESTS = [
-  'Short rest (1 hour): spend hit dice, each heals one roll + your Con modifier.',
-  'Long rest (8 hours): regain all HP and half your hit dice (minimum 1); long-rest features and spell slots come back.',
-];
-
-export const HELP_RULES = [
-  'Help action: an ally gets advantage on their next check for the task, or on their next attack against an enemy within 5 ft of you.',
-  'Stabilize a dying ally: action, Medicine DC 10.',
-];
-
-export const CONCENTRATION = 'Concentrating on a spell and you take damage: Con save, DC 10 or half the damage (whichever is higher), or the spell ends.';
-
 // Fallbacks: the first that resolves for the character fills an empty "Do this".
 export const BASIC = {
   turn: [
