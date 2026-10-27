@@ -71,7 +71,6 @@ export default {
           S('Reaction: when an enemy you can see attacks an ally within 5 ft of you, **Protection** gives that attack disadvantage. Otherwise, an opportunity attack when an enemy leaves your reach.', ['style-protection', 'shield']),
           S('Reaction: an opportunity attack with {weapon.melee} when an enemy leaves your reach.', ['!style-protection']),
           S('Reaction: an opportunity attack with {weapon.melee} when an enemy leaves your reach.', ['style-protection', '!shield']),
-          S('Let the hits land on you, not on your allies.'),
         ],
         if: [INDOMITABLE, I('Enemies surround you', 'Next turn, take the **Dodge** action if nobody needs your damage.')],
       },
@@ -84,11 +83,11 @@ export default {
       },
       explore: {
         do: [S('Walk at the front of the marching order.'), S('Force stuck doors, lift gates, break things: {skill.athletics}.')],
-        if: [WATCH, I('Something attacks from behind', 'Move to it: you are the one who takes hits.')],
+        if: [WATCH, I('Something attacks from behind', 'Move to it.')],
       },
       social: {
-        do: [S("Let the party's talker lead; stand where the other side can see you."), S('Read the other side: {skill.insight}.')],
-        if: [I('Someone threatens the party', 'Step forward and make it clear they go through you: {skill.intimidation}.')],
+        do: [S("Let the party's talker lead."), S('Read the other side: {skill.insight}.')],
+        if: [I('Someone threatens the party', 'Step forward: {skill.intimidation}.')],
       },
       sneak: { do: QUIET_OR_LOUD, if: [I('The scout is spotted', 'Move up fast and put yourself between them and the enemy.')] },
       search: {
@@ -127,7 +126,7 @@ export default {
         ],
       },
       defend: {
-        do: [OPPORTUNITY, S('Keep the pressure on rather than backing off.')],
+        do: [OPPORTUNITY],
         if: [INDOMITABLE],
       },
       hurt: {
@@ -142,7 +141,7 @@ export default {
         if: [WATCH],
       },
       social: {
-        do: [S("Let the talker lead; you're the muscle behind them."), S('When a threat helps: {skill.intimidation}.')],
+        do: [S('Let the talker lead.'), S('When a threat helps: {skill.intimidation}.')],
         if: [I('Talking fails and blades come out', 'You go first: roll initiative **{initiative}**.')],
       },
       sneak: { do: QUIET_OR_LOUD, if: [I('The scout is spotted', 'Charge the enemy who spotted them.')] },
@@ -155,7 +154,7 @@ export default {
       check: CHECK,
       help: {
         do: [
-          S('Kill whatever is hurting your ally: the best help is a dead enemy.'),
+          S('Attack whatever is hurting your ally.'),
           S('Take the **Help** action when they need advantage more than they need your damage.'),
         ],
         if: [STABILIZE],
@@ -191,7 +190,7 @@ export default {
           OPPORTUNITY,
         ],
         if: [
-          I('You used Reckless Attack', 'Attacks against you have advantage until your next turn. You can take it.', ['reckless-attack']),
+          I('You used Reckless Attack', 'Attacks against you have advantage until your next turn.', ['reckless-attack']),
           I('A trap or spell you can see calls for a Dex save', 'You roll it with advantage (**Danger Sense**).', ['danger-sense']),
         ],
       },
@@ -210,7 +209,7 @@ export default {
         if: [WATCH],
       },
       social: {
-        do: [S('Let the talker lead; you are the threat they never have to say out loud.'), S('When it helps: {skill.intimidation}.')],
+        do: [S('Let the talker lead.'), S('When it helps: {skill.intimidation}.')],
         if: [I('You want one person scared', '**Intimidating Presence** (action): they make a Wis save (DC **{intimidateDC}**) or are frightened.', ['intimidating-presence'])],
       },
       sneak: { do: QUIET_OR_LOUD, if: [I('The scout is spotted', 'Charge in; rage on the way.')] },
@@ -368,7 +367,7 @@ export default {
         ],
       },
       social: {
-        do: [S('Let the talker lead; watch the listener: {skill.insight}.'), S('Speak up about roads, beasts and the wilds: you know them best.')],
+        do: [S('Let the talker lead; watch the listener: {skill.insight}.'), S('Speak up about roads, beasts and the wilds.')],
         if: [I('They lie about the land', 'Call it out: {skill.survival}.')],
       },
       sneak: {

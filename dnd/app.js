@@ -1,12 +1,13 @@
 // Router + DOM glue only. Routes: #/ (characters), #/<charId>, #/<charId>/<node>,
 // #/<charId>/<node>/more (that node's Other actions), #/tour/<n> (How this page works),
 // #/help and #/help/<charId> (Look up a word; `help` is also a node id, so the
-// character's help page puts the character after it).
+// character's help page puts the character after it), #/help/<charId>/<slug>
+// (a tapped word: that page, searching for the word's entry).
 // Private files are optional: a missing one is not an error, a broken one is.
 //
 // VERSION busts the Pages cache: bump it on every publish, and use the same
 // stamp in index.html's <script src="app.js?v=...">.
-const VERSION = '2026-10-26f';
+const VERSION = '2026-10-26g';
 
 const { makeLibrary } = await import(`./lib/features.js?v=${VERSION}`);
 const { renderLanding, renderHome, renderNode, renderMore, renderBanner } = await import(`./lib/render.js?v=${VERSION}`);
@@ -15,7 +16,8 @@ const { NODES, MORE, hasMorePage } = await import(`./rules/tree.js?v=${VERSION}`
 const { default: fixtures } = await import(`./fixtures.js?v=${VERSION}`);
 const { renderTour } = await import(`./lib/tour.js?v=${VERSION}`);
 const { TOUR_CHARACTER } = await import(`./rules/tour.js?v=${VERSION}`);
-const { renderHelp, renderHelpResults, helpEntries } = await import(`./lib/help.js?v=${VERSION}`);
+const { renderHelp, renderHelpResults, helpEntries, entryForSlug } = await import(`./lib/help.js?v=${VERSION}`);
+const { linkPage } = await import(`./lib/terms.js?v=${VERSION}`);
 
 const problems = [];
 
@@ -85,10 +87,12 @@ function route() {
   const help = id === 'help';
   if (help && !isHelp(previous)) helpFrom = previous;
   let html;
+  let term = null;
   if (help) {
     const hc = characters.find(c => c.id === rest[0]) ?? null;
     helpList = helpEntries(hc, lib, ctx);
     html = renderHelp(hc, lib, ctx);
+    term = hc ? entryForSlug(rest[1], helpList) : undefined;
     document.title = 'Look up a word';
   } else if (tour) {
     html = renderTour(rest[0], tourCharacter, lib, ctx);
@@ -97,16 +101,22 @@ function route() {
     html = renderLanding(characters, lib, ctx);
     document.title = 'Characters';
   } else if (more) {
-    html = renderMore(ch, node, lib, ctx);
+    html = linkPage(renderMore(ch, node, lib, ctx), ch, lib, ctx);
     document.title = `Other actions · ${NODES[node].label} · ${ch.name}`;
   } else if (!NODES[node]) {
-    html = renderHome(ch, lib, ctx);
+    html = linkPage(renderHome(ch, lib, ctx), ch, lib, ctx);
     document.title = ch.name;
   } else {
-    html = renderNode(ch, node, lib, ctx);
+    html = linkPage(renderNode(ch, node, lib, ctx), ch, lib, ctx);
     document.title = `${NODES[node].label} · ${ch.name}`;
   }
   app.innerHTML = renderBanner(problems) + html;
+  // A tapped word: its term in the box (not focused, so the phone keyboard
+  // stays down) and the results for it.
+  if (term) {
+    document.getElementById('help-q').value = term.term;
+    document.getElementById('help-results').innerHTML = renderHelpResults(term.term, helpList);
+  }
   if (tour) showTourFocus();
   else window.scrollTo(0, help ? 0 : scrollAt.get(current) ?? 0);
 }

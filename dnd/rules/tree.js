@@ -21,7 +21,7 @@ export const NODES = {
   search: { label: 'Searching, traps & locks', group: 'explore' },
   rest: { label: 'Resting', group: 'explore' },
   save: { label: 'Saving throw', group: 'any' },
-  check: { label: 'Other ability check', group: 'any' },
+  check: { label: 'Other ability/skill check', group: 'any' },
   help: { label: 'A friend needs help', group: 'any' },
 };
 

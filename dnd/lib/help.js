@@ -89,3 +89,10 @@ export function renderHelp(ch, lib, ctx = {}) {
     + `<div id="help-results">${renderHelpResults('', helpEntries(ch, lib, ctx))}</div>`;
   return page(bar('Look up a word', back, ctx, true), body);
 }
+
+// #/help/<char>/<slug> (a tapped word): the entry `slug` names, the first
+// when two share it; undefined for an unknown slug.
+export function entryForSlug(s, entries) {
+  if (!s) return undefined;
+  return entries.find(e => slug(e.term) === s);
+}

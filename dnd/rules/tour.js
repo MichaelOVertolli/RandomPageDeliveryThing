@@ -9,8 +9,8 @@ export const TOUR_CHARACTER = 'aldric';
 
 export default [
   { page: 'home', focus: 'job', text: "This is Aldric, an example paladin. Every character's page works the same way. **Your job** says how to play them in one line." },
-  { page: 'home', focus: 'stats', text: 'Your numbers: hit points, armour class, speed and more. Below them: what you can use a limited number of times, and your spell slots.' },
-  { page: 'home', focus: 'groups', text: 'When something happens at the table, find it here and tap it. **Fight** is combat, **Explore** is everything else, **Any time** is saves, checks and helping a friend.' },
+  { page: 'home', focus: 'stats', text: 'Your numbers: hit points, armour class, speed and more. Below them: what you can use a limited number of times, and your spell slots. Tap a word with a dotted underline to see what it means.' },
+  { page: 'home', focus: 'groups', text: 'When something happens at the table, find it here and tap it. **Fight**: combat. **Explore**: travelling, talking, sneaking, searching, resting. **Any time**: the DM asks for a save or a check, or a friend needs help.' },
   { page: 'turn', focus: 'first', text: "Tapping **It's my turn** opens this page. **First turn** only matters at the start of a fight." },
   { page: 'turn', focus: 'do', text: '**Do this** is your usual turn, top to bottom. The numbers are already worked out: **+7 to hit** means roll a d20 and add 7; **1d8+3** is the damage you roll if it hits.' },
   { page: 'turn', focus: 'if', text: 'Glance at **If…** before you act. When one of these is true, do that.' },

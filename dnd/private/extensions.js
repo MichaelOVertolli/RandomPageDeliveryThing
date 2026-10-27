@@ -67,7 +67,6 @@ export default {
         { text: 'Otherwise: an enemy you can see attacks an ally within 5 ft of you → **Protection** gives that attack disadvantage. Failing that, an enemy leaves your reach (even by Disengaging) → opportunity attack; a hit stops it (speed 0).', requires: ['sentinel', 'style-protection', 'shield'] },
         { text: 'Otherwise: an enemy leaves your reach (even by Disengaging) → opportunity attack; a hit stops it (speed 0).', requires: ['sentinel', '!style-protection'] },
         { text: 'Otherwise: an enemy leaves your reach (even by Disengaging) → opportunity attack; a hit stops it (speed 0).', requires: ['sentinel', 'style-protection', '!shield'] },
-        { text: 'Let the hits land on you, not on your allies.' },
       ],
     },
   ],

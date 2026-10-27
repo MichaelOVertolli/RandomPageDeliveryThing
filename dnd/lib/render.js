@@ -150,6 +150,8 @@ const ALL = () => true;
 const list = items => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
 const idList = items => (items.length ? `<ul>${items.map(([id, h]) => `<li data-id="${esc(id)}">${h}</li>`).join('')}</ul>` : '');
 const skillLine = s => `<b>${esc(s.name)} ${d20(s.bonus)}</b>${s.expertise ? ' (expertise)' : s.prof ? ' (proficient)' : ''}`;
+// A skill in an Other actions list: its line, then what it's for (D24).
+const skillNote = s => `${skillLine(s)}: ${esc(SKILLS[s.id].when)}`;
 // A glossary entry as the help page words it: the term in bold, then its text.
 const rule = term => { const e = glossaryEntry(term); return `<p><b>${esc(e.term)}</b>: ${md(e.text)}</p>`; };
 const subsection = (title, html, open) => (html ? `<details class="sub"${open ? ' open' : ''}><summary>${esc(title)}</summary>${html}</details>` : '');
@@ -177,7 +179,7 @@ function otherActions(ch, node, lib, ctx, v, pb) {
   const sk = skills(ch, lib);
   const rows = weaponRows(ch, lib);
   const out = [];
-  const skillItems = ids => idList(ids.filter(id => sk[id] && !has('skills', id)).map(id => [`skill:${id}`, skillLine(sk[id])]));
+  const skillItems = ids => idList(ids.filter(id => sk[id] && !has('skills', id)).map(id => [`skill:${id}`, skillNote(sk[id])]));
   const toolItems = () => (ch.tools ?? []).filter(t => !has('tools', t))
     .map(t => [`tool:${t}`, `<b>${esc(lib.tools[t]?.name ?? t)} ${d20(toolBonus(ch, t, lib) ?? 0)}</b>`]);
   const weaponItems = (list, usage) => idList(list.filter(r => !has('weapons', r.id)).map(r => [`weapon:${r.id}`, md(weaponLine(r, usage(r), ch, lib, v))]));
@@ -194,7 +196,7 @@ function otherActions(ch, node, lib, ctx, v, pb) {
     case 'explore': out.push(skillItems(['perception', 'survival'])); break;
     case 'social': out.push(skillItems(['persuasion', 'deception', 'intimidation', 'performance', 'insight'])); break;
     case 'sneak':
-      if (!has('skills', 'stealth')) out.push(idList([['skill:stealth', `${skillLine(sk.stealth)}${stealthDisadvantage(ch, lib) ? ' · <b>disadvantage</b> in your armor' : ''}`]]));
+      if (!has('skills', 'stealth')) out.push(idList([['skill:stealth', `${skillNote(sk.stealth)}${stealthDisadvantage(ch, lib) ? ' · <b>disadvantage</b> in your armor' : ''}`]]));
       break;
     case 'search': out.push(skillItems(['perception', 'investigation']), idList(toolItems())); break;
     case 'save': {
@@ -205,7 +207,7 @@ function otherActions(ch, node, lib, ctx, v, pb) {
     case 'check': {
       out.push(ABILITIES.map(a => {
         const these = Object.values(sk).filter(s => s.ability === a && !has('skills', s.id));
-        return these.length ? `<h3>${ABILITY_NAMES[a]}</h3>${idList(these.map(s => [`skill:${s.id}`, `${skillLine(s)}: ${esc(SKILLS[s.id].when)}`]))}` : '';
+        return these.length ? `<h3>${ABILITY_NAMES[a]}</h3>${idList(these.map(s => [`skill:${s.id}`, skillNote(s)]))}` : '';
       }).join(''));
       const tools = toolItems();
       if (tools.length) out.push(`<h3>Tools</h3>${idList(tools)}`);
