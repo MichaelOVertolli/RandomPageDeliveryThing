@@ -1,0 +1,441 @@
+<!-- packed-at: 2026-11-13T18:19:39 | source: clean_questions.csv | rows: 33 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Flashcards</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #1a1d24;
+    --surface-2: #232730;
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --accent: #8ab4f8;
+    --good: #34a853;
+    --bad: #ea4335;
+    --radius: 12px;
+    --tap: 56px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --surface: #f3f4f6;
+      --surface-2: #e5e7eb;
+      --text: #1f2328;
+      --muted: #5f6368;
+      --accent: #1a73e8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.4;
+    min-height: 100vh;
+    overscroll-behavior: none;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 22px; margin: 8px 0 16px; }
+  h2 { font-size: 18px; margin: 16px 0 8px; color: var(--muted); font-weight: 500; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chip {
+    background: var(--surface);
+    color: var(--text);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 15px;
+    min-height: 44px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .chip.on {
+    background: var(--surface-2);
+    border-color: var(--accent);
+  }
+  .chip .count { color: var(--muted); margin-left: 6px; font-variant-numeric: tabular-nums; }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  input[type="number"] {
+    width: 100%;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--surface-2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 17px;
+    min-height: var(--tap);
+    appearance: textfield;
+  }
+  button {
+    background: var(--accent);
+    color: #0f1115;
+    border: 0;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    font-size: 17px;
+    font-weight: 600;
+    min-height: var(--tap);
+    width: 100%;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:disabled { opacity: 0.5; }
+  button.secondary {
+    background: var(--surface);
+    color: var(--text);
+  }
+  button.good { background: var(--good); color: #fff; }
+  button.bad  { background: var(--bad);  color: #fff; }
+  .stack > * + * { margin-top: 12px; }
+  .progress { color: var(--muted); font-size: 14px; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .question {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    font-size: 22px;
+    line-height: 1.35;
+    min-height: 120px;
+  }
+  .answer {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 20px;
+    font-size: 19px;
+    margin-top: 12px;
+  }
+  .media-slot { margin-top: 12px; }
+  .media-slot img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: 50vh;
+    border-radius: var(--radius);
+  }
+  .media-slot audio { width: 100%; }
+  .category-tag {
+    display: inline-block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+  .score-total { font-size: 32px; font-weight: 700; margin: 12px 0; }
+  .score-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .score-row:last-child { border-bottom: 0; }
+  .score-row .pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Flashcards</h1>
+
+  <section id="screen-setup" class="screen active">
+    <h2>Categories</h2>
+    <div id="chips" class="chips"></div>
+    <label for="count-input">How many to review?</label>
+    <div class="stack">
+      <input id="count-input" type="number" min="1" inputmode="numeric" />
+      <button id="start-btn">Start</button>
+    </div>
+  </section>
+
+  <section id="screen-review" class="screen">
+    <div id="progress" class="progress"></div>
+    <div id="question" class="question"></div>
+    <div id="media-question" class="media-slot" hidden>
+      <img id="media-question-img" hidden />
+      <audio id="media-question-audio" controls preload="metadata" hidden></audio>
+    </div>
+    <div id="answer-block" hidden>
+      <div class="answer">
+        <span id="answer-category" class="category-tag"></span>
+        <div id="answer-text"></div>
+        <div id="media-answer" class="media-slot" hidden>
+          <img id="media-answer-img" hidden />
+          <audio id="media-answer-audio" controls preload="metadata" hidden></audio>
+        </div>
+      </div>
+    </div>
+    <div id="reveal-row" class="stack">
+      <button id="reveal-btn">Reveal</button>
+    </div>
+    <div id="rate-row" class="actions" hidden>
+      <button id="bad-btn"  class="bad">Missed</button>
+      <button id="good-btn" class="good">Got it</button>
+    </div>
+  </section>
+
+  <section id="screen-score" class="screen">
+    <h2>Session complete</h2>
+    <div id="score-total" class="score-total"></div>
+    <div id="score-breakdown"></div>
+    <div class="stack" style="margin-top: 24px;">
+      <button id="restart-btn">Restart</button>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+// Stratified sample with largest-remainder rounding.
+// Filters `cards` to categories in `selectedCategories`, then picks counts
+// per category proportional to availability. Caps at per-category supply
+// and at total availability. Tie-breaks on equal remainders by the order
+// each category appears in `selectedCategories`.
+export function stratifiedSample(cards, n, selectedCategories) {
+  if (n === 0 || selectedCategories.length === 0) return [];
+
+  const selected = new Set(selectedCategories);
+  const filtered = cards.filter((c) => selected.has(c.category));
+  if (filtered.length === 0) return [];
+
+  const byCat = new Map();
+  for (const cat of selectedCategories) byCat.set(cat, []);
+  for (const c of filtered) byCat.get(c.category).push(c);
+
+  const total = filtered.length;
+  const effectiveN = Math.min(n, total);
+
+  const entries = [];
+  for (const [cat, list] of byCat) {
+    if (list.length === 0) continue;
+    const raw = (list.length / total) * effectiveN;
+    const quota = Math.floor(raw);
+    entries.push({ cat, list, quota, remainder: raw - quota });
+  }
+
+  let leftover =
+    effectiveN - entries.reduce((sum, e) => sum + e.quota, 0);
+
+  const order = entries
+    .map((_, i) => i)
+    .sort(
+      (a, b) =>
+        entries[b].remainder - entries[a].remainder || a - b,
+    );
+
+  for (const i of order) {
+    if (leftover <= 0) break;
+    if (entries[i].quota < entries[i].list.length) {
+      entries[i].quota += 1;
+      leftover -= 1;
+    }
+  }
+
+  const out = [];
+  for (const e of entries) {
+    out.push(...e.list.slice(0, e.quota));
+  }
+  return out;
+}
+
+// Tallies a list of {category, correct} results into total + per-category counts.
+export function scoreSummary(results) {
+  const byCategory = {};
+  let totalCorrect = 0;
+  for (const r of results) {
+    const slot = byCategory[r.category] || { correct: 0, total: 0 };
+    slot.total += 1;
+    if (r.correct) {
+      slot.correct += 1;
+      totalCorrect += 1;
+    }
+    byCategory[r.category] = slot;
+  }
+  return {
+    total: { correct: totalCorrect, total: results.length },
+    byCategory,
+  };
+}
+
+// Fisher-Yates shuffle. Returns a new array; does not mutate input.
+// `rng` must be a function returning a number in [0, 1).
+export function shuffle(arr, rng) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+
+const FLASHCARDS_DATA = [{"id": "0001", "question": "What are the 9 in-cab check items?", "answer": "1. Wheels chocked;Parking brake applied;Ignition key on;Warning indicators\n2. Dashboard warning lights (pbrake only left)\n3. Check 7 gauges\n4. Check air pressure gauge (>100)\n5. Steering wheel\n6. Wiper/washer\n7. Heater/defroster\n8. Glass/mirrors\n9. Seat/seatbelt", "category": "IN-CAB", "media": null}, {"id": "0002", "question": "Airbrakes: Secure the vehicle", "answer": "Wheel chocks applied and parking brake on", "category": "Airbrakes", "media": null}, {"id": "0003", "question": "Airbrakes: Test Low Air Warning", "answer": "Engine on and air pressure over 90 PSI\nalarm activates above 55 PSI\nbelow 55 PSI is DEFECTIVE", "category": "Airbrakes", "media": null}, {"id": "0004", "question": "Airbrakes: Test Air Build Up Time", "answer": "RPM 600-900 (step 3-6-9)\nPressure down to 80 PSI\nStart time from 85 PSI until 100 PSI\nIf more than 2 minutes > DEFECTIVE", "category": "Airbrakes", "media": null}, {"id": "0005", "question": "Airbrakes: Compressor Governor Settings", "answer": "CUT OUT - occurs btw 100 PSI and 145 PSI; else DEFECTIVE\nCUT IN - reduce air to 95 PSI and watch raise to 100; doesn't rise before hitting 80 PSI > DEFECTIVE", "category": "Airbrakes", "media": null}, {"id": "0006", "question": "Airbrakes: Air Loss Rate", "answer": "Engine on, parking brake off, pressure over 100 > hold brake pedal and time for 1min\nSay no air loss\nMore than 3 PSI loss > DEFECTIVE", "category": "Airbrakes", "media": null}, {"id": "0007", "question": "Airbrakes: Testing Parking Spring Brake", "answer": "Take one wheel chock out, start engine, put in gear and give gas\nSay didn't move; else DEFECTIVE\nPut chock back", "category": "Airbrakes", "media": null}, {"id": "0008", "question": "Airbrakes: Drain Air Tanks", "answer": "Drain first air tank 10s - White needle is Primary\nDrain second air tank 10s - Red needle is Secondary\nDrain third air tank 10s - No needle moved is Supply\nSay no water, no oil, no sludge for each\nIf valve not working or water/oil/sludge > DEFECTIVE", "category": "Airbrakes", "media": null}, {"id": "0009", "question": "Airbrakes: Inspect Brake Adjustment", "answer": "Engine on, air pressure btw 90 - 100 PSI\nParking brake off\nEngine off\nOpen hood\nTools > Size 24 standard brake chamber + circular ports (no square) + no tags > default size 24\nMark position of push rod stroke\nUse blue clamp to hold brake pedal\nGo outside, use ruler to measure\nIf more than 1 3/4\" > DEFECTIVE\nRemove clamp and apply parking brake", "category": "Airbrakes", "media": null}, {"id": "0010", "question": "Airbrakes: Response to Defective Condition", "answer": "If defects found >\ntell owner\nwrite on my inspection sheet  \nvehicle use is prohibited", "category": "Airbrakes", "media": null}, {"id": "0011", "question": "Audible air leak", "answer": "Engine on and air pressure over 90 PSI\nalarm activates above 55 PSI\nbelow 55 PSI is DEFECTIVE\n+ listen for audible air leak\nThen say, audible air leak (minor) -> b) air loss rate exceeds prescribed limit (major)", "category": "EXT", "media": null}, {"id": "0012", "question": "Slow air pressure build-up rate", "answer": "RPM 600-900 (step 3-6-9)\nPressure down to 80 PSI\nStart time from 85 PSI until 100 PSI\nIf more than 2 minutes > DEFECTIVE\nThen say, slow air pressure build-up rate (minor)", "category": "EXT", "media": null}, {"id": "0013", "question": "Pushrod stroke of any brake exceeds the adjustment limit", "answer": "Engine on, air pressure btw 90 - 100 PSI\nParking brake off\nEngine off\nOpen hood\nTools > Size 24 standard brake chamber + circular ports (no square) + no tags > default size 24\nMark position of push rod stroke\nUse blue clamp to hold brake pedal\nGo outside, use ruler to measure\nIf more than 1 3/4\" > DEFECTIVE\nRemove clamp and apply parking brake\nThen say, if pushrod stroke of any brake exceeds the adjustment limit (major)", "category": "EXT", "media": null}, {"id": "0014", "question": "Low air warning system fails or system is activated", "answer": "Engine on and air pressure over 90 PSI\nalarm activates above 55 PSI\nbelow 55 PSI is DEFECTIVE\nThen say, if low air warning system fails or system is activated (major)", "category": "EXT", "media": null}, {"id": "0015", "question": "Occupant compartment door fails to open", "answer": "Open and close the door and push/pull on it inside/outside\n\nThen, check that the other doors all close.\nThen say, if occupant compartment door fails to open (minor) + any cab or sleeper door fails to close securely inside/outside (major)", "category": "EXT", "media": null}, {"id": "0016", "question": "Exhaust leak", "answer": "Engine on, hood open, start engine right side looking at pipe then follow back looking for exhaust\n\nThen, check that there is no leak that causes exhaust gas to enter the occupant compartment by smell with fan on and windows up\nThen say, if exhaust leak (minor) + if leak causes the exhaust gas to enter the occupant compartment (major)", "category": "EXT", "media": null}, {"id": "0017", "question": "Damaged frame or cargo body", "answer": "Walk around (full 360) touching the cargo body (red/silver) and looking into gaps in the truck to see that the frame (black) is fine\nSimultaneously say, not visibly shifted, cracked, collapsing or sagging in the frame.\n\nThen say, if damaged frame or cargo body (minor) + if frame is shifted, cracked, collapsing, or sagging (major)", "category": "EXT", "media": null}, {"id": "0018", "question": "Missing fuel tank cap", "answer": "Check that it's there\nThen, check the fuel tank is secure (driver's door)\nThen, check under the fuel tank and under the engine (fuel pump) for leaks\nThen say, if missing fuel tank (minor) + insecure fuel tank (major) + dripping fuel tank (major)", "category": "EXT", "media": null}, {"id": "0019", "question": "Required mirror or glass has broken or damaged attachments onto vehicle body", "answer": "Check glass and mirrors. Touch everything including the seal on the glass (full 360).\nThen say, if required mirror or glass has broken or damaged attachments (minor)", "category": "EXT", "media": null}, {"id": "0020", "question": "Brake fluid level is below indicated minimum level", "answer": "Not applicable > air brake\nVerbalize minor and major", "category": "EXT", "media": null}, {"id": "0021", "question": "Air leak in suspension system", "answer": "Not applicable > spring leaf suspension\nVerbalize minor and major", "category": "EXT", "media": null}, {"id": "0022", "question": "A broken spring leaf", "answer": "Check in engine to see if any of the non-main spring leafs are broken/cracked.\nThen, check if the main spring leaf is broken/cracked or more than one spring leaf in any spring assembly is broken/cracked.\nThen, check if part of the spring leaf or suspension is missing, shifted out of place or is in contact with another vehicle component (e.g., front mount, rear mount, shock absorber).\nThen say, if a spring leaf is broken (minor) + cracked or broken main spring leaf or more than one broken spring leaf in any spring assembly (major) + part of spring leaf or suspension is missing, shifted out of place or is in contact with another vehicle component (major)", "category": "EXT", "media": null}, {"id": "0023", "question": "Suspension fastener is loose, missing or broken", "answer": "Check bolts on spring leaf assembly, front mount, rear mount, and shock absorber.\nThen, check that the U-bolt is not loose\nThen say, if suspension fastener is loose, missing, or broken (minor) + loose u-bolt (major)", "category": "EXT", "media": null}, {"id": "0024", "question": "Damaged tread or sidewall of tire", "answer": "Check that tread is fine (inside/outside)\nThen check the tread tire depth (3mm front; 1.5mm rear)\nThen put your hand between back tires to check they are not touching\nThen check inside/outside of tire is not marked \"not for highway use\"\nThen check that the tire has no exposed cords in the tread or outer sidwall area\nThen verbalize minor/major", "category": "EXT", "media": null}, {"id": "0025", "question": "Tire leaking, if leak cannot be heard", "answer": "Check that you can't see a leak; kick tire\nThen, check that you can't feel/hear a leak\nThen, check that the tire is not flat\nThen verbalize minor/major", "category": "EXT", "media": null}, {"id": "0026", "question": "Hub oil below minimum level", "answer": "Check that oil is below min line in centre of tire\nThen, feel that the seal holding in oil is not leaking (no drips)\nThen, check for imminent wheel, hub, or bearing failure (no damage, crack); push/pull the tire\nThen say, if hub oil is below minimum level (minor) + leaking wheel seal (minor) + evidence of imminent wheel, hub or bearing failure (major)", "category": "EXT", "media": null}, {"id": "0027", "question": "Wheel has loose, missing, or ineffective fastener", "answer": "Check the bolts for the wheel\nThen, check for imminent wheel, hub, or bearing failure (no damage, crack); push/pull the tire\nThen say, wheel has loose, missing or ineffective fastener (major) + evidence of imminent wheel, hub or bearing failure (major)", "category": "EXT", "media": null}, {"id": "0028", "question": "Damaged, cracked, or broken wheel, rim or attaching part", "answer": "Check the wheel and rim for damage cracks on inside/outside\nThen, check for imminent wheel, hub, or bearing failure (no damage, crack); push/pull the tire\nThen say, if wheel or rim is damaged or cracked (major) + evidence of imminent wheel, hub or bearing failure (major)", "category": "EXT", "media": null}, {"id": "0029", "question": "Seat is damaged or fails to remain in set position", "answer": "Check that the seat is normal and it locks in place\nThen, check that the seat belt and tether belt is secure, present and working\nThen say, if seat is damaged or fails to remain in set position (minor) + seatbelt or tether belt is insecure, missing or malfunctions (major)", "category": "INT", "media": null}, {"id": "0030", "question": "Emergency equipment is missing, damaged or defective", "answer": "Check that the emergency kit, fire extinguisher, and triangles are there\nThen verbalize minor", "category": "INT", "media": null}, {"id": "0031", "question": "Required mirror or window glass fails to provide the required view to the driver as a result of being cracked, broken, damaged, missing or maladjusted", "answer": "Check mirrors and all glass (full 360 of cab) that nothing is cracked, broken, damaged, missing, maladjusted\nThe verbalize minor", "category": "INT", "media": null}, {"id": "0032", "question": "Heater/defroster > control or system failure", "answer": "Turn on heater all the way and put hand near vent then turn fan up one step at a time and say you feel it.\nThen say, if the control or system fails (minor) + defroster fails to provide unobstructed view through the windshield due to rain/snow/ice (major)", "category": "INT", "media": null}, {"id": "0033", "question": "Wiper/washer > control or system malfunction\nwiper blade is damaged, missing or fails\nadequately clear driver's field of vision", "answer": "Turn on wiper low/high then use the washer fluid (push)\nThen say, if the control or system malfunctioned, blades damaged/missing or fails or do not adequately clear field of vision (minor) + major if rain/snow/ice", "category": "INT", "media": null}];
+
+const $ = (id) => document.getElementById(id);
+
+const screens = {
+  setup:  $('screen-setup'),
+  review: $('screen-review'),
+  score:  $('screen-score'),
+};
+function show(name) {
+  for (const k of Object.keys(screens)) screens[k].classList.toggle('active', k === name);
+}
+
+const state = {
+  selected: new Set(),
+  cards: [],
+  index: 0,
+  results: [],
+};
+
+function categoryCounts(data) {
+  const counts = {};
+  for (const c of data) counts[c.category] = (counts[c.category] || 0) + 1;
+  return counts;
+}
+
+function renderChips() {
+  const counts = categoryCounts(FLASHCARDS_DATA);
+  const chipsEl = $('chips');
+  chipsEl.innerHTML = '';
+  for (const cat of Object.keys(counts).sort()) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip' + (state.selected.has(cat) ? ' on' : '');
+    btn.innerHTML = `${cat}<span class="count">${counts[cat]}</span>`;
+    btn.addEventListener('click', () => {
+      if (state.selected.has(cat)) state.selected.delete(cat);
+      else state.selected.add(cat);
+      renderChips();
+      syncCountDefault();
+    });
+    chipsEl.appendChild(btn);
+  }
+}
+
+function availableInSelection() {
+  return FLASHCARDS_DATA.filter((c) => state.selected.has(c.category)).length;
+}
+
+function syncCountDefault() {
+  const input = $('count-input');
+  const avail = availableInSelection();
+  input.max = String(avail);
+  if (!input.dataset.userTouched) input.value = String(avail);
+  $('start-btn').disabled = avail === 0 || Number(input.value) <= 0;
+}
+
+function startReview() {
+  const requested = Math.max(1, Math.min(availableInSelection(), Number($('count-input').value) || 0));
+  const selectedCats = [...state.selected];
+  const sampled = stratifiedSample(FLASHCARDS_DATA, requested, selectedCats);
+  state.cards = shuffle(sampled, Math.random);
+  state.index = 0;
+  state.results = [];
+  show('review');
+  renderCard();
+}
+
+function clearMediaSlot(side) {
+  const slot = $(`media-${side}`);
+  const img = $(`media-${side}-img`);
+  const audio = $(`media-${side}-audio`);
+  slot.hidden = true;
+  img.hidden = true;
+  img.removeAttribute('src');
+  audio.pause();
+  audio.hidden = true;
+  audio.removeAttribute('src');
+}
+
+function fillMediaSlot(media) {
+  const slot = $(`media-${media.side}`);
+  const el = $(`media-${media.side}-${media.kind === 'image' ? 'img' : 'audio'}`);
+  el.src = media.src;
+  el.hidden = false;
+  slot.hidden = false;
+}
+
+function renderCard() {
+  const card = state.cards[state.index];
+  $('progress').textContent = `Card ${state.index + 1} of ${state.cards.length}`;
+  $('question').textContent = card.question;
+  $('answer-text').textContent = card.answer;
+  $('answer-category').textContent = card.category;
+  $('answer-block').hidden = true;
+  $('rate-row').hidden = true;
+  $('reveal-row').hidden = false;
+
+  clearMediaSlot('question');
+  clearMediaSlot('answer');
+  if (card.media) fillMediaSlot(card.media);
+}
+
+function reveal() {
+  $('answer-block').hidden = false;
+  $('reveal-row').hidden = true;
+  $('rate-row').hidden = false;
+}
+
+function rate(correct) {
+  const card = state.cards[state.index];
+  state.results.push({ category: card.category, correct });
+  state.index += 1;
+  if (state.index >= state.cards.length) finish();
+  else renderCard();
+}
+
+function finish() {
+  const summary = scoreSummary(state.results);
+  $('score-total').textContent = `${summary.total.correct} / ${summary.total.total} correct`;
+  const bd = $('score-breakdown');
+  bd.innerHTML = '';
+  for (const cat of Object.keys(summary.byCategory).sort()) {
+    const slot = summary.byCategory[cat];
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.innerHTML = `<span>${cat}</span><span class="pct">${slot.correct} / ${slot.total}</span>`;
+    bd.appendChild(row);
+  }
+  show('score');
+}
+
+function restart() {
+  $('count-input').dataset.userTouched = '';
+  state.selected = new Set(Object.keys(categoryCounts(FLASHCARDS_DATA)));
+  renderChips();
+  syncCountDefault();
+  show('setup');
+}
+
+$('count-input').addEventListener('input', () => {
+  $('count-input').dataset.userTouched = '1';
+  $('start-btn').disabled = availableInSelection() === 0 || Number($('count-input').value) <= 0;
+});
+$('start-btn').addEventListener('click', startReview);
+$('reveal-btn').addEventListener('click', reveal);
+$('good-btn').addEventListener('click', () => rate(true));
+$('bad-btn').addEventListener('click', () => rate(false));
+$('restart-btn').addEventListener('click', restart);
+
+state.selected = new Set(Object.keys(categoryCounts(FLASHCARDS_DATA)));
+renderChips();
+syncCountDefault();
+</script>
+</body>
+</html>
